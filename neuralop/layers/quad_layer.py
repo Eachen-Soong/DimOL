@@ -166,13 +166,13 @@ class QuadPath(nn.Module):
 
 
 class ProductLayer(nn.Module):
-    def __init__(self, in_dim, num_prod, out_dim, n_dim=2):
+    def __init__(self, in_dim, num_prods, out_dim, n_dim=2):
         super(ProductLayer, self).__init__()
         self.in_dim = in_dim
-        self.num_prods = num_prod
+        self.num_prods = num_prods
         self.out_dim = out_dim
-        assert in_dim >= 2*num_prod, "Error: in_dim < 2*num_prods!"
-        self.in_dim_linear = in_dim + num_prod
+        assert in_dim >= 2*num_prods, "Error: in_dim < 2*num_prods!"
+        self.in_dim_linear = in_dim + num_prods
         # self.linear = nn.Linear(self.in_dim_linear, self.out_dim, bias=False)
         self.linear = MLP(self.in_dim_linear, self.out_dim, n_layers=1, n_dim=n_dim)
         self.range_prods = torch.tensor(np.array(range(self.num_prods)), dtype=int)

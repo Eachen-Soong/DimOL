@@ -4,6 +4,7 @@ from torch.utils.data import Dataset
 from ..utils import UnitGaussianNormalizer
 from .transforms import PositionalEmbedding
 from h5py import File
+import scipy
 
 class AutoregressiveDataset(Dataset):
     """ Note that this version of dataset just contains data x, 
@@ -168,17 +169,27 @@ def load_autoregressive_traintestsplit(data_path,
 
     Returns
     -------
-    train_loader, test_loader, encoders
+    train_loader, test_loader
 
     train_loader : torch DataLoader None
     test_loader : torch DataLoader None
     encoders : UnitGaussianNormalizer List[UnitGaussianNormalizer] None
     """
-    dataset_type = 'h5' if data_path.endswith('.h5') else 'pt'
+    dataset_type = 'h5' if data_path.endswith('.h5') else ('pt' if data_path.endswith('.pt') else 'mat')
     if dataset_type == 'h5':
         data = h5py.File(data_path, 'r')
-    if dataset_type == 'pt':
+    elif dataset_type == 'pt':
         data = torch.load(data_path)
+    else:
+        try: 
+            data = scipy.io.loadmat(data_path)
+            del data['__header__']
+            del data['__version__']
+            del data['__globals__']
+            del data['a']
+            del data['t']
+        except:
+            raise ValueError(f"Unknown dataset type: {dataset_type}")
 
     train_data = None
     if n_train > 0:

@@ -559,7 +559,7 @@ class MultipleInputCallback(Callback):
             if self.positional_encoding is None and self.append_positional_encoding:
                 assert self.dimension == 2, "Positional encoding currently only supported for 2D"
                 grids = get_grid_positional_encoding(batch['x'], self.grid_boundaries, channel_dim=self.channel_dim)
-                self.positional_encoding = torch.cat(grids[0], grids[1]).unsqueeze(-1).to(self.device)
+                self.positional_encoding = torch.cat((grids[0], grids[1]), dim=1).to(self.device).permute(0,2,3,1).squeeze(0)
 
             for name in batch:
                 if name == 'x' or name == 'y':
@@ -571,11 +571,11 @@ class MultipleInputCallback(Callback):
                     elif self.dimension == 1: broadcast_function = lambda data: repeat(data, 'b -> b m 1', m=self.spacial_resolution[0])
                     elif self.dimension == 3: broadcast_function = lambda data: repeat(data, 'b -> b m n p 1', m=self.spacial_resolution[0], n=self.spacial_resolution[1], p=self.spacial_resolution[2])
                     else: raise ValueError(f"Invalid dimension {self.dimension}")
-
                 self.dim_appenders.append((name, broadcast_function))
 
-                if self.append_positional_encoding:
-                        self.dim_appenders.append(('x', lambda data: self.positional_encoding))
+            if self.append_positional_encoding:
+                self.dim_appenders.append(('x', lambda data: repeat(self.positional_encoding, 'm n c -> b m n c', b=data.shape[0])))
+            
             break
         
     def on_batch_start(self, idx, sample):

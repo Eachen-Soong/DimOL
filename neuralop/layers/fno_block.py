@@ -305,7 +305,7 @@ from .quad_layer import ProductLayer
 class ProdFNO_Blocks(FNOBlocks):
     def __init__(self, in_channels, out_channels, n_modes, output_scaling_factor: Optional[Union[Number, List[Number]]] = None, n_layers=1, incremental_n_modes=None, fno_block_precision="full", 
                  use_mlp=True, mlp_type = 'ProdLayer', num_prods=2,
-                 mlp_dropout=0, mlp_expansion=0.5, non_linearity=F.gelu, stabilizer=None, norm=None, ada_in_features=None, preactivation=False, fno_skip="linear", mlp_skip="soft-gating", separable=False, factorization=None, rank=1, SpectralConv=SpectralConv, joint_factorization=False, fixed_rank_modes=False, implementation="factorized", decomposition_kwargs=dict(), fft_norm="forward", **kwargs):
+                 mlp_dropout=0, mlp_expansion=0.5, non_linearity=F.gelu, stabilizer="tanh", norm=None, ada_in_features=None, preactivation=False, fno_skip="linear", mlp_skip="soft-gating", separable=False, factorization=None, rank=1, SpectralConv=SpectralConv, joint_factorization=False, fixed_rank_modes=False, implementation="factorized", decomposition_kwargs=dict(), fft_norm="forward", **kwargs):
         super().__init__(in_channels, out_channels, n_modes, output_scaling_factor, n_layers, incremental_n_modes, fno_block_precision, use_mlp, mlp_dropout, mlp_expansion, non_linearity, stabilizer, norm, ada_in_features, preactivation, fno_skip, mlp_skip, separable, factorization, rank, SpectralConv, joint_factorization, fixed_rank_modes, implementation, decomposition_kwargs, fft_norm, **kwargs)
         if mlp_type == 'ProdLayer':
             self.mlp = nn.ModuleList(
@@ -318,15 +318,15 @@ class ProdFNO_Blocks(FNOBlocks):
                     for _ in range(n_layers)
                 ]
             )
+            self.mlp_skips = nn.ModuleList(
+                [
+                    skip_connection(
+                        self.in_channels,
+                        self.out_channels,
+                        skip_type=mlp_skip,
+                        n_dim=self.n_dim,
+                    )
+                    for _ in range(n_layers)
+                ]
+            )
 
-class FNOAttentionBlocks(nn.Module):
-    """Attention with FNO! it can be used as upgraded attention, and upgraded FNO as well!
-    """
-    def __init__(self,
-                 sublayer_per_layer=4,
-                    
-                 ):
-        super(FNOAttentionBlocks, self).__init__()
-        self.fno_block = FNOBlocks()
-        self.mlp = MLP()
-        self.conv_out = nn.Conv1d(in_channels=1, out_channels=1, kernel_size=1)

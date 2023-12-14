@@ -8,4 +8,4 @@ from .navier_stokes import load_navier_stokes_pt
 # from .positional_encoding import append_2d_grid_positional_encoding, get_grid_positional_encoding
 from .pt_dataset import load_pt_traintestsplit
 
-from .ns_contextual import load_ns_contextual_toy
+from .ns_contextual import load_ns_contextual_toy, load_ns_contextual_mini
