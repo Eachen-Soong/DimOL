@@ -469,7 +469,7 @@ class SimpleTensorBoardLoggerCallback(Callback):
 
     def on_init_end(self, *args, **kwargs):
         self._update_state_dict(**kwargs)
-    
+
     def on_train_start(self, **kwargs):
         self._update_state_dict(**kwargs)
 

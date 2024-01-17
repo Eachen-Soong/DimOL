@@ -185,6 +185,44 @@ class ProductLayer(nn.Module):
         x = self.linear(x)
         return x
     
+
+class ProductPath(nn.Module):
+    def __init__(self, in_dim, num_prod):
+        super(ProductPath, self).__init__()
+        self.in_dim = in_dim
+        self.num_prods = num_prod
+        assert in_dim >= 2*num_prod, "Error: in_dim < 2*num_prods!"
+        self.in_dim_linear = in_dim + num_prod
+        self.range_prods = torch.tensor(np.array(range(self.num_prods)), dtype=int)
+
+    def forward(self, x):
+        return torch.stack([x[:, 2 *i, ...] * x[:, 2 *i + 1, ...] for i in self.range_prods], dim=1)
+
+
+class ProductGating(nn.Module):
+    def __init__(self, in_dim, num_prod, clamp_thresh=16.):
+        super(ProductGating, self).__init__()
+        self.in_dim = in_dim
+        self.num_prod = num_prod
+        assert in_dim >= 2*num_prod, "Error: in_dim < 2*num_prod!"
+        self.in_dim_linear = in_dim + num_prod
+        self.range_prod = torch.arange(0, num_prod, 1, dtype=torch.int)
+        # TODO: more initialization!
+        # gating_coeff.size: [num_prod] (the first dimension for broadcast on batches)
+        self.gating_coeff = 0.5 * torch.ones([num_prod])
+        self.clamp_thresh = nn.Parameter(torch.tensor(clamp_thresh))
+
+    def forward(self, x):
+        prods = torch.stack([x[:, 2 * i, ...] * x[:, 2 * i + 1, ...] for i in self.range_prod], dim=1)
+        prods = torch.clamp(prods, min=-self.clamp_thresh, max=self.clamp_thresh)
+        coeff = torch.clamp(self.gating_coeff, min=0, max=1).view(1, -1, *([1] * (x.dim() - 2))).to(x.device)
+
+        tmp = prods * coeff
+        tmp = tmp + x[:, -self.num_prod:, ...] * (1. - coeff)
+        new_x = x.clone()
+        new_x[:, -self.num_prod:, ...] = tmp
+        return new_x
+
 # class ProductLayer2D(ProductLayer):
 #     def __init__(self, in_dim, num_prods, out_dim):
 #         super().__init__(in_dim, num_prods, out_dim)
