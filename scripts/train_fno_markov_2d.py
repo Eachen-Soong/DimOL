@@ -78,7 +78,7 @@ def get_parser():
 
 def run(args):
     seed = args.seed
-    if args.random_seed: 
+    if args.random_seed:
         import random
         seed = random.randint(1, 10000)
     torch.manual_seed(seed)
@@ -155,7 +155,7 @@ def run(args):
     file_name = f'{args.data_name}_{args.model_name}'
     prefix = args.prefix
     if prefix != '': file_name = file_name + '_' + prefix
-    config_name = ''
+    # config_name = ''
     config_file_path=''
     if args.config_details:
         # config_name = f'_b{args.batch_size}_mode{args.n_modes}_prod{args.num_prod}_layer{args.n_layers}_hid{args.hidden_channels}_lift{args.lifting_channels}_proj{args.projection_channels}_fact-{args.factorization}_rank{args.rank}_mix-{args.channel_mixing}_pos-enc-{args.pos_encoding}_lr{args.lr}_wd{args.weight_decay}_sche-step{args.scheduler_steps}_gamma{args.scheduler_gamma}_loss{args.train_loss}'
@@ -175,7 +175,6 @@ def run(args):
     save_dir = save_dir + file_name
     temp_dir = tempfile.gettempdir()
     temp_file_path = os.path.join(temp_dir)
-    return
 
     # # # Trainer Definition # # #
     trainer = Trainer(model=model, n_epochs=args.epochs,

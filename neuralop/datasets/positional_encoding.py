@@ -20,8 +20,8 @@ def append_2d_grid_positional_encoding(input_tensor, grid_boundaries=[[0,1],[0,1
 
 def get_grid_positional_encoding(input_tensor, grid_boundaries=[[0,1],[0,1]], channel_dim=1):
     """
-    Appends grid positional encoding to an input tensor, concatenating as additional dimensions along the channels
-        """
+        Appends grid positional encoding to an input tensor, concatenating as additional dimensions along the channels
+    """
     shape = list(input_tensor.shape)
     if len(shape) == 2:
         height, width = shape

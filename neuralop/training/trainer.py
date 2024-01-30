@@ -218,7 +218,7 @@ class Trainer:
 
             epoch_train_time = default_timer() - t1            
 
-            train_err /= len(train_loader)
+            train_err /= len(train_loader.dataset)
             avg_loss  /= self.n_epochs
             
             if epoch % self.log_test_interval == 0: 
@@ -227,7 +227,6 @@ class Trainer:
                     self.callbacks.on_before_val(epoch=epoch, train_err=train_err, time=epoch_train_time, \
                                            avg_loss=avg_loss, avg_lasso_loss=avg_lasso_loss)
                 
-
                 for loader_name, loader in test_loaders.items():
                     _ = self.evaluate(eval_losses, loader, log_prefix=loader_name)
 
@@ -236,6 +235,39 @@ class Trainer:
             
             if self.callbacks:
                 self.callbacks.on_epoch_end(epoch=epoch, train_err=train_err, avg_loss=avg_loss)
+
+    def predict_step(self, sample, idx=0):
+        """Predicts one step with the model
+        
+        Parameters
+        ----------
+        data_loader : data_loader to evaluate on
+
+        Returns
+        -------
+        y_hat : the output of the model
+        """
+
+        self.model.eval()
+
+        with torch.no_grad():
+            
+            if self.callbacks:
+                self.callbacks.on_val_batch_start(idx=idx, sample=sample)
+            
+            # load everything from the batch onto self.device if 
+            # no callback overrides default load to device
+            
+            if self.override_load_to_device:
+                self.callbacks.on_load_to_device(sample=sample)
+            else:
+                for k,v in sample.items():
+                    if hasattr(v, 'to'):
+                        sample[k] = v.to(self.device)
+            
+            out = self.model(**sample)
+
+        return out
 
     def evaluate(self, loss_dict, data_loader,
                  log_prefix=''):
@@ -267,23 +299,10 @@ class Trainer:
         with torch.no_grad():
             for idx, sample in enumerate(data_loader):
                 
-                if self.callbacks:
-                    self.callbacks.on_val_batch_start(idx=idx, sample=sample)
-                
                 y = sample['y']
                 n_samples += y.size(0)
 
-                # load everything from the batch onto self.device if 
-                # no callback overrides default load to device
-                
-                if self.override_load_to_device:
-                    self.callbacks.on_load_to_device(sample=sample)
-                else:
-                    for k,v in sample.items():
-                        if hasattr(v, 'to'):
-                            sample[k] = v.to(self.device)
-
-                out = self.model(**sample)
+                out = self.predict_step(idx=idx, sample=sample)
 
                 if self.callbacks:
                     self.callbacks.on_before_val_loss(out=out)

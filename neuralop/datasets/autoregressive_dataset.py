@@ -3,6 +3,7 @@ import torch
 from torch.utils.data import Dataset
 from ..utils import UnitGaussianNormalizer
 from .transforms import PositionalEmbedding
+from neuralop.datasets.dataloader import ns_contextual_loader
 from h5py import File
 import scipy
 
@@ -10,8 +11,8 @@ class AutoregressiveDataset(Dataset):
     """ Note that this version of dataset just contains data x, 
         instead of preparing correspondent y in advance.
         Because the y is just the x after k time steps! 
-        We neednn't create a new dataset each time we alter k!
-        the dataset can have different attributes, like the ns_contextual: u, f, mu
+        We needn't create a new dataset each time we alter k!
+        the dataset can have different input attributes, e.g. for ns_contextual (F-FNO): u, f, mu
 
         Parameters
         ----------
@@ -83,7 +84,6 @@ class AutoregressiveDataset(Dataset):
                 def getitem_2D(idx):
                     b = idx // self.n_ticks
                     t = idx % self.n_ticks
-
                     item = {'y': self.data[self.predict_feature][b, ..., t+self.time_step]}
                     
                     for name in self.data:
@@ -101,11 +101,11 @@ class AutoregressiveDataset(Dataset):
 
                     return item
             else:
-                def getitem_2D(idx):
+                def getitem_2D(idx, n_steps=1):
                     b = idx // self.n_ticks
                     t = idx % self.n_ticks
 
-                    item = {'y': self.data[self.predict_feature][b, ::self.ssr, ::self.ssr, t+self.time_step]}
+                    item = {'y': self.data[self.predict_feature][b, ::self.ssr, ::self.ssr, t+n_steps*self.time_step]}
                     for name in self.data:
                         constant_dim = self.constant_dims[name]
                         if constant_dim[0]:
@@ -132,10 +132,102 @@ class AutoregressiveDataset(Dataset):
         # returns: {'x', 'y', other features}
         return self.get_item(index)
 
-# From the initial implementations, we've cut off some functions such as different subsample rate across different dimensions, or to upsample the dataset.
+# From the initial implementations, we've cut out some functions such as different subsample rate across different dimensions, or to upsample the dataset.
 # Note that we've taken the train_transform part (i.e. concatenating grid to model input), into the model itself.
 # This is just like what is done in language models, we consider the positional encoding as a part of this model, 
 # instead of some "input data".
+def load_autoregressive_traintestsplit_new(data_path, 
+                        n_train, n_test,
+                        batch_size, test_batch_size, 
+                        train_subsample_rate, test_subsample_rate,
+                        time_step,
+                        predict_feature='u',
+                        append_positional_encoding=True,
+                        ):
+    """Create train-test split from a single file
+    containing any number of tensors. n_train or
+    n_test can be zero. First n_train
+    points are used for the training set and n_test of
+    the remaining points are used for the test set.
+    If subsampling or interpolation is used, all tensors 
+    are assumed to be of the same dimension and the 
+    operation will be applied to all.
+
+    Parameters
+    ----------
+    n_train : int
+    n_test : int
+    batch_size : int
+    test_batch_size : int
+    labels: str list, default is 'x'
+        tensor labels in the data file
+    grid_boundaries : int list, default is [[0,1],[0,1]],
+    positional_encoding : bool list, default is True
+    gaussian_norm : bool list, default is False
+    norm_type : str, default is 'channel-wise'
+    channel_dim : int list, default is 1
+        where to put the channel dimension, defaults size is batch, channel, height, width
+
+    Returns
+    -------
+    train_loader, test_loader
+
+    train_loader : torch DataLoader None
+    test_loader : torch DataLoader None
+    encoders : UnitGaussianNormalizer List[UnitGaussianNormalizer] None
+    """
+    dataset_type = 'h5' if data_path.endswith('.h5') else ('pt' if data_path.endswith('.pt') else 'mat')
+    if dataset_type == 'h5':
+        data = h5py.File(data_path, 'r')
+    elif dataset_type == 'pt':
+        data = torch.load(data_path)
+    else:
+        try:
+            data = scipy.io.loadmat(data_path)
+            del data['__header__']
+            del data['__version__']
+            del data['__globals__']
+            del data['a']
+            del data['t']
+        except:
+            raise ValueError(f"Unknown dataset type: {dataset_type}")
+
+    train_data = None
+    if n_train > 0:
+        train_data = {}
+        for name in data:
+            current_data = torch.tensor(data[name][0:n_train, ...]).type(torch.float32)
+            train_data[name] = current_data.contiguous()
+
+    test_data = None
+    if n_test > 0:
+        test_data = {}
+        for name in data:
+            current_data = torch.tensor(data[name][n_train:(n_train + n_test), ...]).type(torch.float32)
+            test_data[name] = current_data.contiguous()
+
+    del data
+
+    if train_data is not None:
+        train_db = AutoregressiveDataset(train_data, subsample_rate=train_subsample_rate, time_step=time_step, predict_feature=predict_feature)
+        train_loader = ns_contextual_loader(train_db,
+                                            batch_size=batch_size, shuffle=True,
+                                            num_workers=0,
+                                            append_positional_encoding=append_positional_encoding)
+    else:
+        train_loader = None
+
+    if test_data is not None:
+        test_db = AutoregressiveDataset(test_data, subsample_rate=test_subsample_rate, time_step=time_step, predict_feature=predict_feature)
+        test_loader = ns_contextual_loader(test_db,
+                                           batch_size=test_batch_size, shuffle=False,
+                                           num_workers=0,
+                                           append_positional_encoding=append_positional_encoding)
+    else:
+        test_loader = None
+
+    return train_loader, test_loader
+
 def load_autoregressive_traintestsplit(data_path, 
                         n_train, n_test,
                         batch_size, test_batch_size, 

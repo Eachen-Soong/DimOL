@@ -1,6 +1,7 @@
 from .train_fno_markov_2d import get_parser, run
 import argparse
 
+# python -m scripts.param_search_fno_markov_2d
 new_args = argparse.Namespace(
     # Fixed Data Configs
     epochs=1,
