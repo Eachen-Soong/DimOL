@@ -41,7 +41,7 @@ def get_parser():
     parser.add_argument('--time_step', type=int, default=1)
     parser.add_argument('--predict_feature', type=str, default='u')
     parser.add_argument('--data_path', type=str, default='./data/ns_random_forces_1.h5', help="the path of data file")
-    parser.add_argument('--data_name', type=str, default='NS', help="the name of dataset")
+    parser.add_argument('--data_name', type=str, default='NS_Contextual', help="the name of dataset")
     # # # Model Configs # # #
     parser.add_argument('--n_modes', type=int, default=21) #
     parser.add_argument('--num_prod', type=int, default=2) #
