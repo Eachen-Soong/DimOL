@@ -20,7 +20,7 @@ class ns_contextual_loader(DataLoader):
     def __init__(self, dataset, batch_size, shuffle=True, num_workers=0, append_positional_encoding=False, positional_encoding=None, grid_boundaries=[[0,1],[0,1]], channel_dim=1):
         super(ns_contextual_loader, self).__init__(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=True)
         self.spacial_resolution = None
-        self.dim_appenders = [] # [(name, broadcast function)]
+        self.dim_appenders = [] # [(name, broadcasdefault_collatet function)]
         self.append_positional_encoding = append_positional_encoding
         self.positional_encoding = positional_encoding
         self.grid_boundaries = grid_boundaries
@@ -30,6 +30,7 @@ class ns_contextual_loader(DataLoader):
         """ Build the dim_app enders according to the dataset dims """
         item = None
         for item in dataset:
+            print(item)
             break
         self.spacial_resolution  = item['x'].shape # [(space)]
         # print(f"self.spacial_resolution: {self.spacial_resolution}")

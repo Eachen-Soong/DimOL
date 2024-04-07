@@ -13,7 +13,7 @@ from neuralop import Trainer
 # from neuralop.training import OutputEncoderCallback
 from neuralop.utils import count_params
 from neuralop import LpLoss, H1Loss
-from neuralop.datasets.autoregressive_dataset import load_autoregressive_traintestsplit
+from neuralop.datasets.autoregressive_dataset import load_autoregressive_traintestsplit_v1
 from neuralop.training import MultipleInputCallback, SimpleTensorBoardLoggerCallback, ModelCheckpointCallback
 
 import os
@@ -40,13 +40,13 @@ def get_parser():
     parser.add_argument('--test_subsample_rate', type=int, default=1)
     parser.add_argument('--time_step', type=int, default=1)
     parser.add_argument('--predict_feature', type=str, default='u')
-    parser.add_argument('--data_path', type=str, default='./', help="the path of data file")
+    parser.add_argument('--data_path', type=str, default='./data/ns_random_forces_1.h5', help="the path of data file")
     parser.add_argument('--data_name', type=str, default='NS', help="the name of dataset")
     # # # Model Configs # # #
     parser.add_argument('--n_modes', type=int, default=21) #
     parser.add_argument('--num_prod', type=int, default=2) #
     parser.add_argument('--n_layers', type=int, default=4) ##
-    parser.add_argument('--raw_in_channels', type=int, default=1, help='TorusLi: 1; ns_contextual: 3')
+    parser.add_argument('--raw_in_channels', type=int, default=3, help='TorusLi: 1; ns_contextual: 3')
     parser.add_argument('--pos_encoding', type=bool, default=True) ##
     parser.add_argument('--hidden_channels', type=int, default=32) #
     parser.add_argument('--lifting_channels', type=int, default=256) #
@@ -96,15 +96,16 @@ def run(args):
     time_step = args.time_step
     # data_path = "/home/yichen/repo/cfd/myFNO/data/zongyi/NavierStokes_V1e-5_N1200_T20.mat"
     data_path = args.data_path
-    train_loader, test_loader = load_autoregressive_traintestsplit(
+    train_loader, test_loader = load_autoregressive_traintestsplit_v1(
         data_path,
         n_train, n_test,
         batch_size, test_batch_size,
         train_subsample_rate, test_subsample_rate,
         time_step,
         predict_feature=args.predict_feature,
+        append_positional_encoding=args.pos_encoding
     )
-    resolution = test_loader.dataset[0]['x'].shape[0]
+    resolution = train_loader.dataset[0]['x'].shape[0]
 
     # # # Model Definition # # #
     n_modes=args.n_modes
@@ -177,17 +178,21 @@ def run(args):
     temp_file_path = os.path.join(temp_dir)
 
     # # # Trainer Definition # # #
-    trainer = Trainer(model=model, n_epochs=args.epochs,
+    from scripts.ns_contextual_trainer import ns_contextual_trainer
+
+    trainer = ns_contextual_trainer(model=model, n_epochs=300,
                     device=device,
-                    callbacks=[MultipleInputCallback(append_positional_encoding=args.pos_encoding), 
-                                SimpleTensorBoardLoggerCallback(log_dir=log_dir),
-                                ModelCheckpointCallback(
+                    simaug_test_data=False,
+                    simaug_train_data=True,
+                    callbacks=[SimpleTensorBoardLoggerCallback(log_dir=log_dir),
+                               ModelCheckpointCallback(
                                 checkpoint_dir=temp_file_path,
-                                interval=args.save_interval)], 
+                                interval=args.save_interval)],
+                    scaling_ks=[4,16], scaling_ps=[4,16],
                     wandb_log=False,
-                    log_test_interval=args.log_interval,
+                    log_test_interval=1,
                     use_distributed=False,
-                    verbose=verbose)
+                    verbose=True)
 
     trainer.train(train_loader=train_loader,
                 test_loaders={resolution: test_loader},

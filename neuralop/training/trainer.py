@@ -10,6 +10,10 @@ import neuralop.mpu.comm as comm
 from .losses import LpLoss
 from .callbacks import PipelineCallback
 
+from typing import Union, Dict
+
+import time
+
 class Trainer:
     def __init__(self, *, 
                  model, 
@@ -93,13 +97,14 @@ class Trainer:
                  verbose=verbose)
         
         
-    def train(self, train_loader, test_loaders,
-            optimizer, scheduler, regularizer,
+    def train(self, 
+              train_loader:Union[Dict[str, torch.utils.data.DataLoader], torch.utils.data.DataLoader], 
+              test_loaders, optimizer, scheduler, regularizer,
               training_loss=None, eval_losses=None):
         
         """Trains the given model on the given datasets.
         params:
-        train_loader: torch.utils.data.DataLoader
+        train_loader: torch.utils.data.DataLoader or dict[torch.utils.data.DataLoader]
             training dataloader
         test_loaders: dict[torch.utils.data.DataLoader]
             testing dataloaders
@@ -109,6 +114,16 @@ class Trainer:
             learning rate scheduler to use during training
         training_loss: function to use 
         """
+        if isinstance(train_loader, torch.utils.data.DataLoader):
+            # This is the case where train_loaders is a single DataLoader instance.
+            train_loader_list = {'default': train_loader}
+        elif isinstance(train_loader, dict):
+            # This is the case where train_loaders is a dictionary of DataLoader instances.
+            train_loader_list = train_loader
+        else:
+            raise ValueError("train_loaders must be either a DataLoader or a dictionary of DataLoader instances.")
+        
+        n_loader = len(train_loader_list.keys())
 
         if self.callbacks:
             self.callbacks.on_train_start(train_loader=train_loader, test_loaders=test_loaders,
@@ -128,81 +143,84 @@ class Trainer:
             is_logger = True 
         
         for epoch in range(self.n_epochs):
-
-            if self.callbacks:
-                self.callbacks.on_epoch_start(epoch=epoch)
-
+            
+            train_err = 0.0
             avg_loss = 0
             avg_lasso_loss = 0
-            self.model.train()
-            t1 = default_timer()
-            train_err = 0.0
-
-            for idx, sample in enumerate(train_loader):
-
+            for loader_name, train_loader in train_loader_list.items():
                 if self.callbacks:
-                    self.callbacks.on_batch_start(idx=idx, sample=sample)
+                    self.callbacks.on_epoch_start(epoch=epoch)
 
-                # Decide what to do about logging later when we decide on batch naming conventions
-                '''if epoch == 0 and idx == 0 and self.verbose and is_logger:
-                    print(f'Training on raw inputs of size {x.shape=}, {y.shape=}')'''
-
-                # y = sample['y']
-
-                # load everything from the batch onto self.device if 
-                # no callback overrides default load to device
                 
-                if self.override_load_to_device:
-                    self.callbacks.on_load_to_device(sample=sample)
-                else:
-                    for k,v in sample.items():
-                        if hasattr(v, 'to'):
-                            sample[k] = v.to(self.device)
-
-                optimizer.zero_grad(set_to_none=True)
-                if regularizer:
-                    regularizer.reset()
-
-                if self.amp_autocast:
-                    with amp.autocast(enabled=True):
-                        out = self.model(**sample)
-                else:
-                    out = self.model(**sample)
-
-                if self.callbacks:
-                    self.callbacks.on_before_loss(out=out)
+                self.model.train()
+                t1 = default_timer()
                 
-                loss = 0.
 
-                if self.overrides_loss:
-                    if isinstance(out, torch.Tensor):
-                        loss += self.callbacks.compute_training_loss(out=out.float(), **sample, amp_autocast=self.amp_autocast)
-                    elif isinstance(out, dict):
-                        loss += self.callbacks.compute_training_loss(**out, **sample, amp_autocast=self.amp_autocast)
-                else:
+                for idx, sample in enumerate(train_loader):
+
+                    if self.callbacks:
+                        self.callbacks.on_batch_start(idx=idx, sample=sample)
+
+                    # Decide what to do about logging later when we decide on batch naming conventions
+                    '''if epoch == 0 and idx == 0 and self.verbose and is_logger:
+                        print(f'Training on raw inputs of size {x.shape=}, {y.shape=}')'''
+
+                    # y = sample['y']
+
+                    # load everything from the batch onto self.device if 
+                    # no callback overrides default load to device
+                    
+                    if self.override_load_to_device:
+                        self.callbacks.on_load_to_device(sample=sample)
+                    else:
+                        for k,v in sample.items():
+                            if hasattr(v, 'to'):
+                                sample[k] = v.to(self.device)
+
+                    optimizer.zero_grad(set_to_none=True)
+                    if regularizer:
+                        regularizer.reset()
+
                     if self.amp_autocast:
                         with amp.autocast(enabled=True):
+                            out = self.model(**sample)
+                    else:
+                        out = self.model(**sample)
+
+                    if self.callbacks:
+                        self.callbacks.on_before_loss(out=out)
+
+                    loss = 0.
+
+                    if self.overrides_loss:
+                        if isinstance(out, torch.Tensor):
+                                loss += self.callbacks.compute_training_loss(out=out.float(), **sample, amp_autocast=self.amp_autocast)
+                        elif isinstance(out, dict):
+                            loss += self.callbacks.compute_training_loss(**out, **sample, amp_autocast=self.amp_autocast)
+                    else:
+                        if self.amp_autocast:
+                            with amp.autocast(enabled=True):
+                                if isinstance(out, torch.Tensor):
+                                    loss = training_loss(out.float(), **sample)
+                                elif isinstance(out, dict):
+                                    loss += training_loss(**out, **sample)
+                        else:
                             if isinstance(out, torch.Tensor):
                                 loss = training_loss(out.float(), **sample)
                             elif isinstance(out, dict):
                                 loss += training_loss(**out, **sample)
-                    else:
-                        if isinstance(out, torch.Tensor):
-                            loss = training_loss(out.float(), **sample)
-                        elif isinstance(out, dict):
-                            loss += training_loss(**out, **sample)
-                
-                del out
 
-                if regularizer:
-                    loss += regularizer.loss
-                
-                # print(loss.shape)
-                loss.backward()
-                
-                optimizer.step()
+                    del out
+
+                    if regularizer:
+                        loss += regularizer.loss
+
+                    loss.backward()
+                    
+                    optimizer.step()
+
                 train_err += loss.item()
-        
+            
                 with torch.no_grad():
                     avg_loss += loss.item()
                     if regularizer:
@@ -216,9 +234,10 @@ class Trainer:
             else:
                 scheduler.step()
 
-            epoch_train_time = default_timer() - t1            
+            epoch_train_time = default_timer() - t1
 
             train_err /= len(train_loader.dataset)
+            train_err /= n_loader
             avg_loss  /= self.n_epochs
             
             if epoch % self.log_test_interval == 0: 
@@ -296,9 +315,11 @@ class Trainer:
         errors = {f'{log_prefix}_{loss_name}':0 for loss_name in loss_dict.keys()}
 
         n_samples = 0
+        eval_start_time = time.time()
+        evaluation_time = 0
         with torch.no_grad():
             for idx, sample in enumerate(data_loader):
-                
+                batch_start_time = time.time()
                 y = sample['y']
                 n_samples += y.size(0)
 
@@ -323,7 +344,10 @@ class Trainer:
 
                 if self.callbacks:
                     self.callbacks.on_val_batch_end()
+                evaluation_time += time.time() - batch_start_time
         
+        preprocess_time = time.time() - eval_start_time - evaluation_time
+
         del y, out
 
         for key in errors.keys():
@@ -331,5 +355,6 @@ class Trainer:
         
         if self.callbacks:
             self.callbacks.on_val_epoch_end(errors=errors)
-
+            
+        if self.verbose: print("test_set: ", log_prefix, preprocess_time, errors)
         return errors

@@ -122,27 +122,53 @@ class SimilarDataloadersCallback(Callback):
     """
         on train start, when the trainer gets the train loader, 
         the callback would automatically generate similar dataloaders, 
-        and udpates them to the test_loaders dict.
+        and udpates them to the original loaders dict.
     """
-    def __init__(self, scaling_ks, scaling_ps):
+    def __init__(self, scaling_ks, scaling_ps, train_aug=True, test_aug=False):
         super().__init__()
         self.scaling_ks = scaling_ks
         self.scaling_ps = scaling_ps
-    
+        self.train_aug = train_aug
+        self.test_aug = test_aug
+
     def on_train_start(self, train_loader, test_loaders, **kwargs):
         self.scaling_ks = self.scaling_ks
         self.scaling_ps = self.scaling_ps
-        dict_k_loaders = gen_similar_dataloaders_dt_times_k(train_loader, scaling_ks=self.scaling_ks)
-        dict_p_loaders = gen_similar_dataloaders_dt_divided_p(train_loader, scaling_ps=self.scaling_ps)
-        test_loaders.update(dict_k_loaders)
-        test_loaders.update(dict_p_loaders)
+        if isinstance(train_loader, torch.utils.data.DataLoader):
+            # This is the case where train_loaders is a single DataLoader instance.
+            train_loader = {'default': train_loader}
+        elif isinstance(train_loader, dict):
+            # This is the case where train_loaders is a dictionary of DataLoader instances.
+            pass
+        else:
+            raise ValueError("train_loaders must be either a DataLoader or a dictionary of DataLoader instances.")
+
+        dict_k_loaders = gen_similar_dataloaders_dt_times_k(train_loader['default'], scaling_ks=self.scaling_ks)
+        dict_p_loaders = gen_similar_dataloaders_dt_divided_p(train_loader['default'], scaling_ps=self.scaling_ps)
+
+        if self.train_aug:
+            train_loader.update(dict_k_loaders)
+            train_loader.update(dict_p_loaders)
+        for key, loader in train_loader.items():
+            item = None
+            # print(loader.__len__())
+            for item in loader:
+                break
+            print(f"{key}: {item['x'].shape=}, len: {loader.dataset.__len__()}, len: {loader.dataset.n_ticks}, N: {loader.dataset.n_samples}")
+            sys.stdout.flush()
+        
+        if self.test_aug:
+            test_loaders.update(dict_k_loaders)
+            test_loaders.update(dict_p_loaders)
         for key, loader in test_loaders.items():
             item = None
+            # print(loader.__len__())
             for item in loader:
                 break
             print(f"{key}: {item['x'].shape=}, len: {loader.dataset.__len__()}, len: {loader.dataset.n_ticks}, N: {loader.dataset.n_samples}")
             sys.stdout.flush()
 
+import time
 
 class ns_contextual_trainer(Trainer):
     def __init__(self, model, 
@@ -151,14 +177,16 @@ class ns_contextual_trainer(Trainer):
                  device=None, 
                  amp_autocast=False, 
                  callbacks = [], 
-                 use_sim_dataset = True, 
+                 scaling_ks=[1,4,16,64], scaling_ps=[1,4,16,64],
+                 simaug_test_data=False, simaug_train_data=True, 
                  log_test_interval=1, 
                  log_output=False, 
                  use_distributed=False, 
                  checkpoint_to_load: pathlib.Path=None, 
                  verbose=True):
-        if use_sim_dataset:
-            callbacks.append(SimilarDataloadersCallback(scaling_ks=[1,2,3], scaling_ps=[1,2,3]))
+        if simaug_test_data or simaug_train_data:
+            callbacks.append(SimilarDataloadersCallback(scaling_ks=scaling_ks, scaling_ps=scaling_ps, 
+                                                        train_aug=simaug_train_data, test_aug=simaug_test_data))
         super(ns_contextual_trainer, self).__init__(
                     model=model, 
                     n_epochs=n_epochs, 
@@ -177,6 +205,7 @@ class ns_contextual_trainer(Trainer):
     def evaluate(self, loss_dict, data_loader, log_prefix=''):
         use_k_steps = False
         divide_p_parts = False
+        # print(time.time())
         if hasattr(data_loader.dataset, 'is_k_integer'):
             if data_loader.dataset.is_k_integer:
                 use_k_steps = True
@@ -205,7 +234,7 @@ class ns_contextual_trainer(Trainer):
             dict[f'{log_prefix}_{loss_name}] = loss for loss in loss_dict
         """
         k = int(k)
-        log_prefix = log_prefix + str(k)
+        # log_prefix = log_prefix + str(k)
 
         if self.callbacks:
             self.callbacks.on_val_epoch_start(loss_dict = loss_dict, data_loader=data_loader)
@@ -213,10 +242,12 @@ class ns_contextual_trainer(Trainer):
         errors = {f'{log_prefix}_{loss_name}':0 for loss_name in loss_dict.keys()}
 
         n_samples = 0
+        eval_start_time = time.time()
+        evaluation_time = 0
         with torch.no_grad():
             
             for idx, sample in enumerate(data_loader):
-                
+                batch_start_time = time.time()
                 y = sample['y']
                 n_samples += y.size(0)
 
@@ -246,6 +277,9 @@ class ns_contextual_trainer(Trainer):
 
                 if self.callbacks:
                     self.callbacks.on_val_batch_end()
+                    evaluation_time += time.time() - batch_start_time
+        
+        preprocess_time = time.time() - eval_start_time - evaluation_time
 
         del y, out
 
@@ -255,6 +289,7 @@ class ns_contextual_trainer(Trainer):
         if self.callbacks:
             self.callbacks.on_val_epoch_end(errors=errors)
 
+        if self.verbose: print(log_prefix, preprocess_time)
         return errors
 
     # def evaluate_dt_divided_p(self, loss_dict, log_prefix='dt/=p_'):

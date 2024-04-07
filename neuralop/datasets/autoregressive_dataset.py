@@ -136,7 +136,7 @@ class AutoregressiveDataset(Dataset):
 # Note that we've taken the train_transform part (i.e. concatenating grid to model input), into the model itself.
 # This is just like what is done in language models, we consider the positional encoding as a part of this model, 
 # instead of some "input data".
-def load_autoregressive_traintestsplit_new(data_path, 
+def load_autoregressive_traintestsplit_v1(data_path, 
                         n_train, n_test,
                         batch_size, test_batch_size, 
                         train_subsample_rate, test_subsample_rate,
