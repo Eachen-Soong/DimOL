@@ -5,7 +5,7 @@ from torch.utils.data.dataloader import DataLoader
 from neuralop.datasets.positional_encoding import get_grid_positional_encoding
 from neuralop.datasets.transforms import PositionalEmbedding
 from torch.utils.data import default_collate # it's a function
-
+import copy
 
 class ns_contextual_loader(DataLoader):
     """
@@ -30,7 +30,6 @@ class ns_contextual_loader(DataLoader):
         """ Build the dim_app enders according to the dataset dims """
         item = None
         for item in dataset:
-            print(item)
             break
         self.spacial_resolution  = item['x'].shape # [(space)]
         # print(f"self.spacial_resolution: {self.spacial_resolution}")

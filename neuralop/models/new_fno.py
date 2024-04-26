@@ -243,7 +243,6 @@ class FNO(nn.Module):
             * If tuple, specifies the output-shape of the **last** FNO Block
             * If tuple list, specifies the exact output-shape of each FNO Block
         """
-
         if output_shape is None:
             output_shape = [None]*self.n_layers
         elif isinstance(output_shape, tuple):

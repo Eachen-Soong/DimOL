@@ -1,21 +1,14 @@
-"""
-    Only supports the time series datasets! (model definition assumes it's 2d problem here)
-    (the train numbers and test numbers should not be predefined in the dataset, otherwise merge the dataset)
-    the predicted feature now only support 1 channel
-    logger currently only supports tensorboard 
-    TODO: support more channels
-"""
+# python -m scripts.train_lsm_ns_contextual --n_train 2 --n_test 1 
 import torch
 import numpy as np
 
-from neuralop.models import FNO
-from neuralop import Trainer
-# from neuralop.training import OutputEncoderCallback
+from neuralop.models import LSM_2D
+# from neuralop import Trainer
+from scripts.ns_contextual_trainer import ns_contextual_trainer
 from neuralop.utils import count_params
 from neuralop import LpLoss, H1Loss
-from neuralop.datasets.autoregressive_dataset import load_autoregressive_traintestsplit_new
-from neuralop.training import MultipleInputCallback, SimpleTensorBoardLoggerCallback, ModelCheckpointCallback
-from scripts.ns_contextual_trainer import ns_contextual_trainer
+from neuralop.datasets.autoregressive_dataset import load_autoregressive_traintestsplit_v1
+from neuralop.training import SimpleTensorBoardLoggerCallback, ModelCheckpointCallback
 
 import os
 import sys
@@ -30,32 +23,39 @@ print(f'Using {device} device')
 import argparse
 
 def get_parser():
-    parser = argparse.ArgumentParser('FNO Models', add_help=False)
-    parser.add_argument('--model', type=str, default='FNO')
-    parser.add_argument('--model_name',  type=str, default='FNO')
+    parser = argparse.ArgumentParser('Latent Spectral Models', add_help=False)
+    parser.add_argument('--model', type=str, default='LSM')
+    parser.add_argument('--model_name',  type=str, default='LSM')
     # # # Data Loader Configs # # #
     parser.add_argument('--n_train', type=int, default=1000)
     parser.add_argument('--n_test', type=int, default=200)
-    parser.add_argument('--batch_size', type=int, default=32) #
+    parser.add_argument('--batch_size', type=int, default=20) #
     parser.add_argument('--train_subsample_rate', type=int, default=1)
     parser.add_argument('--test_subsample_rate', type=int, default=1)
     parser.add_argument('--time_step', type=int, default=1)
     parser.add_argument('--predict_feature', type=str, default='u')
-    parser.add_argument('--data_path', type=str, default='./', help="the path of data file")
+    parser.add_argument('--data_path', type=str, default='./data/ns_random_forces_1.h5', help="the path of data file")
     parser.add_argument('--data_name', type=str, default='NS_Contextual', help="the name of dataset")
-    # # # Model Configs # # #
-    parser.add_argument('--n_modes', type=int, default=21) #
-    parser.add_argument('--num_prod', type=int, default=2) #
-    parser.add_argument('--n_layers', type=int, default=4) ##
-    parser.add_argument('--raw_in_channels', type=int, default=1, help='TorusLi: 1; ns_contextual: 3')
+    # # # # Model Configs # # #
+    parser.add_argument('--in_dim', default=3, type=int, help='input data dimension')
+    parser.add_argument('--out_dim', default=1, type=int, help='output data dimension')
+    parser.add_argument('--h', default=1, type=int, help='input data height')
+    parser.add_argument('--w', default=1, type=int, help='input data width')
+    parser.add_argument('--T-in', default=10, type=int,
+                        help='input data time points (only for temporal related experiments)')
+    parser.add_argument('--T-out', default=10, type=int,
+                        help='predict data time points (only for temporal related experiments)')
+    
     parser.add_argument('--pos_encoding', type=bool, default=True) ##
-    parser.add_argument('--hidden_channels', type=int, default=32) #
-    parser.add_argument('--lifting_channels', type=int, default=256) #
-    parser.add_argument('--projection_channels', type=int, default=64) #
-    parser.add_argument('--factorization', type=str, default='tucker') #####
-    parser.add_argument('--channel_mixing', type=str, default='prod-layer', help='') #####
-    parser.add_argument('--rank', type=float, default=0.42, help='the compression rate of tensor') #
-    # # # Optimizer Configs # # #
+
+    parser.add_argument('--h-down', default=1, type=int, help='height downsampe rate of input')
+    parser.add_argument('--w-down', default=1, type=int, help='width downsampe rate of input')
+    parser.add_argument('--d-model', default=32, type=int, help='channels of hidden variates')
+    parser.add_argument('--num-basis', default=12, type=int, help='number of basis operators')
+    parser.add_argument('--num-token', default=4, type=int, help='number of latent tokens')
+    parser.add_argument('--patch-size', default='4,4', type=str, help='patch size of different dimensions')
+    parser.add_argument('--padding', default='0,0', type=str, help='padding size of different dimensions')
+    # # # # Optimizer Configs # # #
     parser.add_argument('--lr', type=float, default=1e-3) #
     parser.add_argument('--weight_decay', type=float, default=1e-4) #
     parser.add_argument('--scheduler_steps', type=int, default=100) #
@@ -87,6 +87,7 @@ def run(args):
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     verbose = args.verbose
+
     # # # Data Preparation # # #
     n_train = args.n_train
     n_test = args.n_test
@@ -97,25 +98,31 @@ def run(args):
     time_step = args.time_step
     # data_path = "/home/yichen/repo/cfd/myFNO/data/zongyi/NavierStokes_V1e-5_N1200_T20.mat"
     data_path = args.data_path
-    train_loader, test_loader = load_autoregressive_traintestsplit_new(
+    train_loader, test_loader = load_autoregressive_traintestsplit_v1(
         data_path,
         n_train, n_test,
-        batch_size, test_batch_size, 
+        batch_size, test_batch_size,
         train_subsample_rate, test_subsample_rate,
         time_step,
         predict_feature=args.predict_feature,
-        append_positional_encoding=args.pos_encoding,
+        append_positional_encoding=args.pos_encoding
     )
-    resolution = test_loader.dataset[0]['x'].shape[0]
+    resolution = train_loader.dataset[0]['x'].shape[0]
 
     # # # Model Definition # # #
-    n_modes=args.n_modes
-    num_prod=args.num_prod
-    in_channels = args.raw_in_channels
+    in_channels = args.in_dim
     if args.pos_encoding:
         in_channels += 2
-    model = FNO(in_channels=in_channels, n_modes=(n_modes, n_modes), hidden_channels=args.hidden_channels, lifting_channels=args.lifting_channels,
-                projection_channels=args.projection_channels, n_layers=args.n_layers, factorization=args.factorization, channel_mixing=args.channel_mixing, rank=args.rank, num_prod=num_prod)
+    out_channels = args.out_dim
+    width = args.d_model
+    num_token = args.num_token
+    num_basis = args.num_basis
+    patch_size = [int(x) for x in args.patch_size.split(',')]
+    padding = [int(x) for x in args.padding.split(',')]
+
+
+    model = model = LSM_2D(in_dim=in_channels, out_dim=out_channels, d_model=width,
+                           num_token=num_token, num_basis=num_basis, patch_size=patch_size, padding=padding)
 
     model = model.to(device)
 
@@ -161,8 +168,7 @@ def run(args):
     config_file_path=''
     if args.config_details:
         # config_name = f'_b{args.batch_size}_mode{args.n_modes}_prod{args.num_prod}_layer{args.n_layers}_hid{args.hidden_channels}_lift{args.lifting_channels}_proj{args.projection_channels}_fact-{args.factorization}_rank{args.rank}_mix-{args.channel_mixing}_pos-enc-{args.pos_encoding}_lr{args.lr}_wd{args.weight_decay}_sche-step{args.scheduler_steps}_gamma{args.scheduler_gamma}_loss{args.train_loss}'
-        config_file_path = f"/layer_{args.n_layers}/fact-{args.factorization}/rank_{args.rank}/mix-{args.channel_mixing}/prod_{args.num_prod}/pos-enc-{args.pos_encoding}/loss-{args.train_loss}/mode_{args.n_modes}/hid_{args.hidden_channels}/lift_{args.lifting_channels}/proj_{args.projection_channels}/b_{args.batch_size}/lr_{args.lr}/wd_{args.weight_decay}/sche-step_{args.scheduler_steps}/gamma_{args.scheduler_gamma}/"
-    time_name = ''
+        config_file_path = f"/width_{args.d_model}/pos-enc-{args.pos_encoding}/num_token{args.num_token}/num_basis_{args.num_basis}/patch_size_{args.patch_size}/padding_{args.padding}/loss-{args.train_loss}/b_{args.batch_size}/lr_{args.lr}/wd_{args.weight_decay}/sche-step_{args.scheduler_steps}/gamma_{args.scheduler_gamma}/"
     if args.time_suffix:
         localtime = time.localtime(time.time())
         time_name = f"{localtime.tm_mon}-{localtime.tm_mday}-{localtime.tm_hour}-{localtime.tm_min}"
@@ -177,19 +183,26 @@ def run(args):
     save_dir = save_dir + file_name
     temp_dir = tempfile.gettempdir()
     temp_file_path = os.path.join(temp_dir)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
 
     # # # Trainer Definition # # #
-    trainer = Trainer(model=model, n_epochs=args.epochs,
+
+    trainer = ns_contextual_trainer(model=model, n_epochs=args.epochs,
                     device=device,
-                    use_sim_dataset=True,
-                  callbacks=[ SimpleTensorBoardLoggerCallback(log_dir=log_dir),
-                              ModelCheckpointCallback(
+                    simaug_test_data=True,
+                    simaug_train_data=False,
+                    callbacks=[SimpleTensorBoardLoggerCallback(log_dir=log_dir),
+                               ModelCheckpointCallback(
                                 checkpoint_dir=temp_file_path,
-                                interval=args.save_interval)], 
+                                interval=args.save_interval)],
+                    scaling_ks=[4,16], scaling_ps=[4,16],
                     wandb_log=False,
                     log_test_interval=args.log_interval,
                     use_distributed=False,
-                    verbose=verbose)
+                    verbose=True)
 
     trainer.train(train_loader=train_loader,
                 test_loaders={resolution: test_loader},
@@ -203,6 +216,7 @@ def run(args):
         file_path = os.path.join(temp_dir, filename)
         
         if os.path.isfile(file_path) and (filename.endswith('.pth') or filename.endswith('.pt')):
+            print(file_path, file_name)
             shutil.move(file_path, os.path.join(save_dir, filename))
 
     return

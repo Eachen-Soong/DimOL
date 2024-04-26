@@ -1,5 +1,22 @@
 # myNeuralOperator
 
+Experiment Structure:
+
+We have 4 models (FNO/F-FNO/T-FNO/LSM), from which we can chose the first 3 of them as backbone model.
+
+1. Regular Grid
+4 datasets: darcy, burgers, torus_li (from the original FNO paper), ns_contextual (from F_FNO)
+
+Note that in this setting, we can check whether a method is well-functioned as a operator enough by using some augmented datasets to test (for the ns_contextual dataset).
+
+```bash
+python -m scripts.train_fno_torus_li --...
+```
+
+2. Irregular Grid
+
+
+
 One thing to consider: for the model, 
 
 say, the feature to predict is u, and the input feature has other dimensions such as f, mu, and even fixed-weight terms like x_grid and y_grid, then where should we append the dimensions?

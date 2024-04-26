@@ -1,9 +1,12 @@
 from pathlib import Path
 import torch
+import scipy
 
 from ..utils import UnitGaussianNormalizer
 from .tensor_dataset import TensorDataset
 from .transforms import PositionalEmbedding
+from .tensor_dataset import GeneralTensorDataset
+
 
 
 def load_darcy_flow_small(
@@ -75,7 +78,7 @@ def load_darcy_flow_small(
 def load_darcy_pt(
     data_path,
     n_train,
-    n_tests,
+    n_test,
     batch_size,
     test_batch_sizes,
     test_resolutions=[32],
@@ -99,7 +102,6 @@ def load_darcy_pt(
 
     idx = test_resolutions.index(train_resolution)
     test_resolutions.pop(idx)
-    n_test = n_tests.pop(idx)
     test_batch_size = test_batch_sizes.pop(idx)
 
     data = torch.load(
@@ -163,8 +165,8 @@ def load_darcy_pt(
         persistent_workers=False,
     )
     test_loaders = {train_resolution: test_loader}
-    for (res, n_test, test_batch_size) in zip(
-        test_resolutions, n_tests, test_batch_sizes
+    for (res, test_batch_size) in zip(
+        test_resolutions, test_batch_sizes
     ):
         print(
             f"Loading test db at resolution {res} with {n_test} samples "
@@ -175,6 +177,127 @@ def load_darcy_pt(
             data["x"][:n_test, :, :].unsqueeze(channel_dim).type(torch.float32).clone()
         )
         y_test = data["y"][:n_test, :, :].unsqueeze(channel_dim).clone()
+        del data
+        if input_encoder is not None:
+            x_test = input_encoder.encode(x_test)
+
+        test_db = TensorDataset(
+            x_test,
+            y_test,
+            transform_x=PositionalEmbedding(grid_boundaries, 0)
+            if positional_encoding
+            else None,
+        )
+        test_loader = torch.utils.data.DataLoader(
+            test_db,
+            batch_size=test_batch_size,
+            shuffle=False,
+            num_workers=0,
+            pin_memory=True,
+            persistent_workers=False,
+        )
+        test_loaders[res] = test_loader
+
+    return train_loader, test_loaders, output_encoder
+
+
+def load_darcy_mat(data_path,
+    n_train,
+    n_test,
+    batch_size,
+    test_batch_size,
+    train_ssr=5,
+    test_ssrs=[1],
+    grid_boundaries=[[0, 1], [0, 1]],
+    positional_encoding=True,
+    encode_input=False,
+    encode_output=True,
+    encoding="channel-wise",
+    channel_dim=1,
+    ):
+    try: 
+        data0 = scipy.io.loadmat(data_path)
+        del data0['__header__']
+        del data0['__version__']
+        del data0['__globals__']
+        del data0['Kcoeff']
+        del data0['Kcoeff_x']
+        del data0['Kcoeff_y']
+    except:
+        raise ValueError(f"Unknown dataset type")
+    
+    data = {}
+
+    data['x'] = torch.from_numpy(data0['coeff'])
+    data['y'] = torch.from_numpy(data0['sol'])
+
+    # for key in data0.keys():
+    #     data[key] = torch.from_numpy(data0[key])
+    
+    del data0
+
+    initial_resolution = data["x"].shape[1]
+
+    train_resolution = int(((initial_resolution - 1)/train_ssr) + 1)
+
+    # test_resolutions.pop(idx)
+    # n_test = n_tests.pop(idx)
+    # test_batch_size = test_batch_sizes.pop(idx)
+
+    x_train = (
+        data["x"][0:n_train, ::train_ssr, ::train_ssr][:,:train_resolution,:train_resolution].unsqueeze(channel_dim).type(torch.float32).clone()
+    )
+    y_train = data["y"][0:n_train, ::train_ssr, ::train_ssr][:,:train_resolution,:train_resolution].unsqueeze(channel_dim).clone()
+
+    if encode_input:
+        if encoding == "channel-wise":
+            reduce_dims = list(range(x_train.ndim))
+        elif encoding == "pixel-wise":
+            reduce_dims = [0]
+
+        input_encoder = UnitGaussianNormalizer(x_train, reduce_dim=reduce_dims)
+        x_train = input_encoder.encode(x_train)
+        x_test = input_encoder.encode(x_test.contiguous())
+    else:
+        input_encoder = None
+
+    if encode_output:
+        if encoding == "channel-wise":
+            reduce_dims = list(range(y_train.ndim))
+        elif encoding == "pixel-wise":
+            reduce_dims = [0]
+
+        output_encoder = UnitGaussianNormalizer(y_train, reduce_dim=reduce_dims)
+        y_train = output_encoder.encode(y_train)
+    else:
+        output_encoder = None
+
+    train_db = TensorDataset(
+        x_train,
+        y_train,
+        transform_x=PositionalEmbedding(grid_boundaries, 0)
+        if positional_encoding
+        else None,
+    )
+    train_loader = torch.utils.data.DataLoader(
+        train_db,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=0,
+        pin_memory=True,
+        persistent_workers=False,
+    )
+    test_loaders = {}
+    for ssr in test_ssrs:
+        res = int(((initial_resolution - 1)/ssr) + 1)
+        print(
+            f"Loading test db at resolution {res} with {n_test} samples "
+            f"and batch-size={test_batch_size}"
+        )
+        x_test = (
+            data["x"][:n_test, ::ssr, ::ssr][:,:res,:res].unsqueeze(channel_dim).type(torch.float32).clone()
+        )
+        y_test = data["y"][:n_test, ::ssr, ::ssr][:,:res,:res].unsqueeze(channel_dim).clone()
         del data
         if input_encoder is not None:
             x_test = input_encoder.encode(x_test)

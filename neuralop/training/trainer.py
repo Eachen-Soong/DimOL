@@ -157,7 +157,6 @@ class Trainer:
                 
 
                 for idx, sample in enumerate(train_loader):
-
                     if self.callbacks:
                         self.callbacks.on_batch_start(idx=idx, sample=sample)
 
@@ -209,7 +208,6 @@ class Trainer:
                                 loss = training_loss(out.float(), **sample)
                             elif isinstance(out, dict):
                                 loss += training_loss(**out, **sample)
-
                     del out
 
                     if regularizer:
@@ -312,7 +310,7 @@ class Trainer:
 
         self.model.eval()
 
-        errors = {f'{log_prefix}_{loss_name}':0 for loss_name in loss_dict.keys()}
+        errors = {f'{log_prefix}_{loss_name}': 0. for loss_name in loss_dict.keys()}
 
         n_samples = 0
         eval_start_time = time.time()
@@ -329,16 +327,17 @@ class Trainer:
                     self.callbacks.on_before_val_loss(out=out)
                 
                 for loss_name, loss in loss_dict.items():
+                    val_loss = 0.
                     if self.overrides_loss:
                         if isinstance(out, torch.Tensor):
-                            val_loss = self.callbacks.compute_training_loss(out.float(), **sample)
+                            val_loss = self.callbacks.compute_training_loss(out, **sample)
                         elif isinstance(out, dict):
                             val_loss = self.callbacks.compute_training_loss(**out, **sample)
                     else:
                         if isinstance(out, torch.Tensor):
                             val_loss = loss(out, **sample).item()
                         elif isinstance(out, dict):
-                            val_loss = loss(out, **sample).item()
+                            val_loss = loss(**out, **sample).item()
 
                     errors[f'{log_prefix}_{loss_name}'] += val_loss
 
@@ -356,5 +355,5 @@ class Trainer:
         if self.callbacks:
             self.callbacks.on_val_epoch_end(errors=errors)
             
-        if self.verbose: print("test_set: ", log_prefix, preprocess_time, errors)
+        # if self.verbose: print("test_set: ", log_prefix, preprocess_time, errors)
         return errors

@@ -1,4 +1,4 @@
-from .train_fno_markov_2d import get_parser, run
+from .train_fno_torus_li import get_parser, run
 import argparse
 
 # python -m scripts.param_search_fno_markov_2d
