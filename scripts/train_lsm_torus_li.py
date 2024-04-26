@@ -3,12 +3,11 @@ import torch
 import numpy as np
 
 from neuralop.models import LSM_2D
-# from neuralop import Trainer
-from scripts.ns_contextual_trainer import ns_contextual_trainer
+from neuralop import Trainer
 from neuralop.utils import count_params
 from neuralop import LpLoss, H1Loss
-from neuralop.datasets.autoregressive_dataset import load_autoregressive_traintestsplit_v1
-from neuralop.training import SimpleTensorBoardLoggerCallback, ModelCheckpointCallback
+from neuralop.datasets.autoregressive_dataset import load_autoregressive_traintestsplit
+from neuralop.training import SimpleTensorBoardLoggerCallback, ModelCheckpointCallback, MultipleInputCallback
 
 import os
 import sys
@@ -37,7 +36,7 @@ def get_parser():
     parser.add_argument('--data_path', type=str, default='./', help="the path of data file")
     parser.add_argument('--data_name', type=str, default='TorusLi', help="the name of dataset")
     # # # # Model Configs # # #
-    parser.add_argument('--in_dim', default=3, type=int, help='input data dimension')
+    parser.add_argument('--in_dim', default=1, type=int, help='input data dimension')
     parser.add_argument('--out_dim', default=1, type=int, help='output data dimension')
     parser.add_argument('--h', default=1, type=int, help='input data height')
     parser.add_argument('--w', default=1, type=int, help='input data width')
@@ -98,16 +97,15 @@ def run(args):
     time_step = args.time_step
     # data_path = "/home/yichen/repo/cfd/myFNO/data/zongyi/NavierStokes_V1e-5_N1200_T20.mat"
     data_path = args.data_path
-    train_loader, test_loader = load_autoregressive_traintestsplit_v1(
+    train_loader, test_loader = load_autoregressive_traintestsplit(
         data_path,
         n_train, n_test,
-        batch_size, test_batch_size,
+        batch_size, test_batch_size, 
         train_subsample_rate, test_subsample_rate,
         time_step,
         predict_feature=args.predict_feature,
-        append_positional_encoding=args.pos_encoding
     )
-    resolution = train_loader.dataset[0]['x'].shape[0]
+    resolution = test_loader.dataset[0]['x'].shape[0]
 
     # # # Model Definition # # #
     in_channels = args.in_dim
@@ -190,19 +188,17 @@ def run(args):
 
     # # # Trainer Definition # # #
 
-    trainer = ns_contextual_trainer(model=model, n_epochs=args.epochs,
+    trainer = Trainer(model=model, n_epochs=args.epochs,
                     device=device,
-                    simaug_test_data=True,
-                    simaug_train_data=False,
-                    callbacks=[SimpleTensorBoardLoggerCallback(log_dir=log_dir),
-                               ModelCheckpointCallback(
-                                checkpoint_dir=temp_file_path,
-                                interval=args.save_interval)],
-                    scaling_ks=[4,16], scaling_ps=[4,16],
+                    callbacks=[ MultipleInputCallback(append_positional_encoding=args.pos_encoding), 
+                                SimpleTensorBoardLoggerCallback(log_dir=log_dir),
+                                ModelCheckpointCallback(
+                                checkpoint_dir=save_dir,
+                                interval=args.save_interval)], 
                     wandb_log=False,
                     log_test_interval=args.log_interval,
                     use_distributed=False,
-                    verbose=True)
+                    verbose=verbose)
 
     trainer.train(train_loader=train_loader,
                 test_loaders={resolution: test_loader},

@@ -3,12 +3,11 @@ import torch
 import numpy as np
 
 from neuralop.models import LSM_2D
-# from neuralop import Trainer
-from scripts.ns_contextual_trainer import ns_contextual_trainer
+from neuralop import Trainer
 from neuralop.utils import count_params
 from neuralop import LpLoss, H1Loss
 from neuralop.datasets.darcy import load_darcy_mat
-from neuralop.training import SimpleTensorBoardLoggerCallback, ModelCheckpointCallback
+from neuralop.training import OutputEncoderCallback, SimpleTensorBoardLoggerCallback, ModelCheckpointCallback
 
 import os
 import sys
@@ -30,17 +29,17 @@ def get_parser():
     parser.add_argument('--n_train', type=int, default=1000)
     parser.add_argument('--n_test', type=int, default=200)
     parser.add_argument('--batch_size', type=int, default=20) #
-    parser.add_argument('--train_subsample_rate', type=int, default=1)
-    parser.add_argument('--test_subsample_rate', type=int, default=1)
+    parser.add_argument('--train_subsample_rate', type=int, default=5)
+    parser.add_argument('--test_subsample_rate', type=int, default=5)
     parser.add_argument('--time_step', type=int, default=1)
     parser.add_argument('--predict_feature', type=str, default='u')
     parser.add_argument('--data_path', type=str, default='./', help="the path of data file")
     parser.add_argument('--data_name', type=str, default='DarcyFlow', help="the name of dataset")
     # # # # Model Configs # # #
-    parser.add_argument('--in_dim', default=3, type=int, help='input data dimension')
+    parser.add_argument('--in_dim', default=1, type=int, help='input data dimension')
     parser.add_argument('--out_dim', default=1, type=int, help='output data dimension')
-    parser.add_argument('--h', default=1, type=int, help='input data height')
-    parser.add_argument('--w', default=1, type=int, help='input data width')
+    parser.add_argument('--h', default=421, type=int, help='input data height')
+    parser.add_argument('--w', default=421, type=int, help='input data width')
     parser.add_argument('--T-in', default=10, type=int,
                         help='input data time points (only for temporal related experiments)')
     parser.add_argument('--T-out', default=10, type=int,
@@ -48,13 +47,13 @@ def get_parser():
     
     parser.add_argument('--pos_encoding', type=bool, default=True) ##
 
-    parser.add_argument('--h-down', default=1, type=int, help='height downsampe rate of input')
-    parser.add_argument('--w-down', default=1, type=int, help='width downsampe rate of input')
-    parser.add_argument('--d-model', default=32, type=int, help='channels of hidden variates')
+    # parser.add_argument('--h-down', default=5, type=int, help='height downsampe rate of input')
+    # parser.add_argument('--w-down', default=5, type=int, help='width downsampe rate of input')
+    parser.add_argument('--d-model', default=64, type=int, help='channels of hidden variates')
     parser.add_argument('--num-basis', default=12, type=int, help='number of basis operators')
     parser.add_argument('--num-token', default=4, type=int, help='number of latent tokens')
-    parser.add_argument('--patch-size', default='4,4', type=str, help='patch size of different dimensions')
-    parser.add_argument('--padding', default='0,0', type=str, help='padding size of different dimensions')
+    parser.add_argument('--patch-size', default='6,6', type=str, help='patch size of different dimensions')
+    parser.add_argument('--padding', default='11,11', type=str, help='padding size of different dimensions')
     # # # # Optimizer Configs # # #
     parser.add_argument('--lr', type=float, default=1e-3) #
     parser.add_argument('--weight_decay', type=float, default=1e-4) #
@@ -185,19 +184,17 @@ def run(args):
 
     # # # Trainer Definition # # #
 
-    trainer = ns_contextual_trainer(model=model, n_epochs=args.epochs,
+    trainer = Trainer(model=model, n_epochs=args.epochs,
                     device=device,
-                    simaug_test_data=True,
-                    simaug_train_data=False,
-                    callbacks=[SimpleTensorBoardLoggerCallback(log_dir=log_dir),
-                               ModelCheckpointCallback(
-                                checkpoint_dir=temp_file_path,
-                                interval=args.save_interval)],
-                    scaling_ks=[4,16], scaling_ps=[4,16],
+                    callbacks=[ OutputEncoderCallback(encoder),
+                                SimpleTensorBoardLoggerCallback(log_dir=log_dir),
+                                ModelCheckpointCallback(
+                                checkpoint_dir=save_dir,
+                                interval=args.save_interval)], 
                     wandb_log=False,
                     log_test_interval=args.log_interval,
                     use_distributed=False,
-                    verbose=True)
+                    verbose=verbose)
 
     trainer.train(train_loader=train_loader,
                 test_loaders=test_loaders,
