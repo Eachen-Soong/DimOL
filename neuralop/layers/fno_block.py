@@ -392,6 +392,7 @@ class FNOBlocks1(nn.Module):
             decomposition_kwargs=decomposition_kwargs,
             joint_factorization=joint_factorization,
             n_layers=n_layers,
+            # **kwargs
         )
 
         self.fno_skips = nn.ModuleList(
@@ -605,7 +606,7 @@ class FNOBlocks1(nn.Module):
     def __getitem__(self, indices):
         return self.get_block(indices)
 
-from .new_spectral_conv import SpectralConvFFNO2d
+from .new_spectral_conv import SpectralConvFFNO2d, SpectralConvProd
 
 class F_FNOBlocks2D(FNOBlocks1):
     def __init__(

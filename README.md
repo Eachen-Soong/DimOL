@@ -17,6 +17,14 @@ python -m scripts.train_fno_torus_li --...
 
 
 
+## Dataset Preparation
+We adopt the F-FNO datasets, which has intergrated the FNO datasets too.
+
+```shell
+wget --continue https://object-store.rc.nectar.org.au/v1/AUTH_c0e4d64401cf433fb0260d211c3f23f8/fourierflow/data-2021-12-24.tar.gz
+tar -zxvf data-2021-12-24.tar.gz
+```
+
 One thing to consider: for the model, 
 
 say, the feature to predict is u, and the input feature has other dimensions such as f, mu, and even fixed-weight terms like x_grid and y_grid, then where should we append the dimensions?

@@ -5,6 +5,7 @@ import torch.nn.functional as F
 
 from ..layers.spectral_convolution import SpectralConv
 from ..layers.spherical_convolution import SphericalConv
+from ..layers.new_spectral_conv import SpectralConvProd
 from ..layers.padding import DomainPadding
 from ..layers.fno_block import FNOBlocks1, F_FNOBlocks2D
 from ..layers.mlp import MLP
@@ -729,7 +730,7 @@ def partialclass(new_name, cls, *args, **kwargs):
     )
     return new_class
 
-
+SpecProdFNO = TFNO = partialclass("SpecProdFNO", FNO, SpectralConv=SpectralConvProd)
 TFNO = partialclass("TFNO", FNO, factorization="Tucker")
 TFNO1d = partialclass("TFNO1d", FNO1d, factorization="Tucker")
 TFNO2d = partialclass("TFNO2d", FNO2d, factorization="Tucker")
