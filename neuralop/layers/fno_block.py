@@ -392,7 +392,6 @@ class FNOBlocks1(nn.Module):
             decomposition_kwargs=decomposition_kwargs,
             joint_factorization=joint_factorization,
             n_layers=n_layers,
-            # **kwargs
         )
 
         self.fno_skips = nn.ModuleList(
