@@ -10,8 +10,6 @@ from neuralop.utils import count_params
 from neuralop import LpLoss, H1Loss
 # from neuralop.training import MultipleInputCallback, SimpleTensorBoardLoggerCallback, ModelCheckpointCallback
 
-import os
-import sys
 import time
 import shutil
 import tempfile
@@ -45,9 +43,9 @@ def get_parser():
     parser.add_argument('--model', type=str, default='FNO')
     parser.add_argument('--model_name',  type=str, default='FNO')
     # # # Data Loader Configs # # #
-    parser.add_argument('--n_train', type=int, default=2000)
-    parser.add_argument('--n_test', type=int, default=490)
-    parser.add_argument('--batch_size', type=int, default=32) #
+    parser.add_argument('--n_train', type=int, default=1000)
+    parser.add_argument('--n_test', type=int, default=200)
+    parser.add_argument('--batch_size', type=int, default=20) #
     # parser.add_argument('--test_batch_size', type=int, default=64) #
     parser.add_argument('--train_subsample_rate', type=int, default=1)
     parser.add_argument('--test_subsample_rate', type=int, default=1)
@@ -64,8 +62,10 @@ def get_parser():
     parser.add_argument('--factorization', type=str, default='tucker') #####
     parser.add_argument('--channel_mixing', type=str, default='', help='') #####
     parser.add_argument('--rank', type=float, default=0.42, help='the compression rate of tensor') #
+    parser.add_argument('--load_path', type=str, default='', help='load checkpoint')
+
     # # # Optimizer Configs # # #
-    parser.add_argument('--lr', type=float, default=1e-2) #
+    parser.add_argument('--lr', type=float, default=5e-4) #
     parser.add_argument('--weight_decay', type=float, default=1e-4) #
     parser.add_argument('--scheduler_steps', type=int, default=100) #
     parser.add_argument('--scheduler_gamma', type=float, default=0.5) #
@@ -79,7 +79,7 @@ def get_parser():
     parser.add_argument('--log_interval', type=int, default=4)
     parser.add_argument('--save_interval', type=int, default=20)
     # # # Trainer Configs # # #
-    parser.add_argument('--epochs', type=int, default=500) #
+    parser.add_argument('--epochs', type=int, default=501) #
     parser.add_argument('--verbose', type=bool, default=True)
     parser.add_argument('--random_seed', type=bool, default=False)
     parser.add_argument('--seed', type=int, default=0)
@@ -143,8 +143,8 @@ def run(args):
     y_train = output[:ntrain, ::r1, ::r2][:, :s1, :s2]
     x_test = input[ntrain:ntrain + ntest, ::r1, ::r2][:, :s1, :s2]
     y_test = output[ntrain:ntrain + ntest, ::r1, ::r2][:, :s1, :s2]
-    x_train = x_train.reshape(ntrain, 2, s1, s2)
-    x_test = x_test.reshape(ntest, 2, s1, s2)
+    x_train = x_train.reshape(ntrain, s1, s2, 2).permute([0, 3, 1, 2])
+    x_test = x_test.reshape(ntest, s1, s2, 2).permute([0, 3, 1, 2])
     # print(x_train.shape, x_test.shape)
 
     train_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(x_train, y_train), batch_size=batch_size,
@@ -153,7 +153,7 @@ def run(args):
                                             shuffle=False)
 
 
-    # # # Loss Definition # # #
+    # # # Loss Definition # # #/home/yichen/repo/cfd/myFNO/experiments/exp_ns0.py
     l2loss = LpLoss(d=2, p=2)
     h1loss = H1Loss(d=2)
 
@@ -225,7 +225,7 @@ def run(args):
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
     if not os.path.exists(save_dir):
-        os.makedirs(save_dir)    
+        os.makedirs(save_dir)
     # log_dir = Path(log_dir)
     # save_dir = Path(save_dir)
 
@@ -247,7 +247,7 @@ def run(args):
 
             optimizer.step()
             train_l2 += loss.item()
-
+        
         scheduler.step()
 
         model.eval()
@@ -274,6 +274,31 @@ def run(args):
         if not(ep%save_interval):
             checkpoint_path = save_dir + f"ep_{ep}.pt"
             torch.save(model.state_dict(), checkpoint_path)
+
+        plot_step_size=4
+        if ep % plot_step_size == 0:
+            ind = -1
+            X = x[ind, 0, :, :].squeeze().detach().cpu().numpy()
+            Y = x[ind, 1, :, :].squeeze().detach().cpu().numpy()
+            truth = y[ind].squeeze().detach().cpu().numpy()
+            pred = out[ind].squeeze().detach().cpu().numpy()
+            nx = 40 // r1
+            ny = 20 // r2
+            X_small = X[nx:-nx, :ny]
+            Y_small = Y[nx:-nx, :ny]
+            truth_small = truth[nx:-nx, :ny]
+            pred_small = pred[nx:-nx, :ny]
+
+            fig, ax = plt.subplots(nrows=3, ncols=2, figsize=(16, 16))
+            ax[0, 0].pcolormesh(X, Y, truth, shading='gouraud')
+            ax[1, 0].pcolormesh(X, Y, pred, shading='gouraud')
+            ax[2, 0].pcolormesh(X, Y, pred - truth, shading='gouraud')
+            ax[0, 1].pcolormesh(X_small, Y_small, truth_small, shading='gouraud')
+            ax[1, 1].pcolormesh(X_small, Y_small, pred_small, shading='gouraud')
+            ax[2, 1].pcolormesh(X_small, Y_small, np.abs(pred_small - truth_small), shading='gouraud')
+            print(np.mean(np.abs(pred_small - truth_small)))
+            fig.show()
+            fig.savefig(f'./img/fno_ep{ep}')
 
     return
 

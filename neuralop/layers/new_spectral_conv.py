@@ -298,6 +298,7 @@ class SpectralAttetionBlock2D(nn.Module):
         fixed_rank_modes=False,
         decomposition_kwargs: Optional[dict] = None,
         init_std="auto",
+        Wv=None
     ):
         super().__init__()
         self.in_channels = in_channels
@@ -389,7 +390,128 @@ class SpectralAttetionBlock2D(nn.Module):
         attn = self.complex_softmax(einsum("bhskr,bhpk->bhspr", q, k))
         out = einsum("bhspr,bhsv->bhvpr", attn, v).view(B, self.out_channels, S1, R)
         return out
-        
+
+# class SpectralAttetionBlock2D(nn.Module):
+#     """
+#         Attention block as the kernel of 2D spectral convolution.
+#         Structure:
+#         partial_spetral shape: B C Rs1 R, where Rs is the spetral resolution
+#             we would do the attention on the channel dimension, 
+#             and deem the specreal dimension as the 'series length' dimension.
+#         full_spetral shape: B C Rs1 Rs2
+#         Wq shape: H Rs1 dk  =einsum(partial_spetral)=> Q shape: B H C dk R
+#         Wk shape: H Rs1 Rs2 dk =einsum(full_spetral)=> K shape: B H C dk
+#         Wv shape: H Rs1 Rs2 dv =einsum(full_spetral)=> V shape: B H C dv (dv = Rs1)
+#     """
+#     def __init__(
+#         self,
+#         in_channels,
+#         out_channels,
+#         n_modes,
+#         dk=0,
+#         n_heads=1, 
+#         rank=1.,
+#         factorization=None,
+#         fixed_rank_modes=False,
+#         decomposition_kwargs: Optional[dict] = None,
+#         init_std="auto",
+#         Wv=None
+#     ):
+#         super().__init__()
+#         self.in_channels = in_channels
+#         self.out_channels = out_channels
+#         if dk==0:
+#             dk=in_channels
+#         self.dk = dk
+#         self.n_heads = n_heads
+
+#         if isinstance(n_modes, int):
+#             n_modes = [n_modes]
+#         self.n_modes = n_modes
+#         self.half_n_modes = [m // 2 for m in self.n_modes]
+#         self.order = len(n_modes)
+#         assert self.order==2, "Cunrrently only 2D input supported!"
+
+#         self.dv = int(self.half_n_modes[0]/n_heads)
+#         assert self.dv *n_heads == self.half_n_modes[0], "n_heads must be a divisor of out_channels!"
+
+#         self.rank = rank
+#         self.factorization = factorization
+
+#         if init_std == "auto":
+#             init_std = (2 / (in_channels + out_channels))**0.5
+#         else:
+#             init_std = init_std
+
+#         if isinstance(fixed_rank_modes, bool):
+#             if fixed_rank_modes:
+#                 # If bool, keep the number of layers fixed
+#                 fixed_rank_modes = [0]
+#             else:
+#                 fixed_rank_modes = None
+
+#         # Make sure we are using a Complex Factorized Tensor to parametrize the
+#         if factorization is None:
+#             factorization = "Dense"  # No factorization
+#         if not factorization.lower().startswith("complex"):
+#             factorization = f"Complex{factorization}"
+
+#         tensor_kwargs = decomposition_kwargs if decomposition_kwargs is not None else {}
+
+#         wq_shape = [n_heads, self.half_n_modes[0], self.dk]
+#         self.Wq = FactorizedTensor.new(
+#                     wq_shape,
+#                     rank=self.rank,
+#                     factorization=factorization,
+#                     fixed_rank_modes=fixed_rank_modes,
+#                     **tensor_kwargs,
+#                 )
+#         wk_shape = [n_heads, self.half_n_modes[0], self.half_n_modes[1], self.dk]
+#         self.Wk = FactorizedTensor.new(
+#                     wk_shape,
+#                     rank=self.rank,
+#                     factorization=factorization,
+#                     fixed_rank_modes=fixed_rank_modes,
+#                     **tensor_kwargs,
+#                 )
+#         self.Wq.normal_(0, init_std)
+#         self.Wk.normal_(0, init_std)
+
+#         wv_shape = [n_heads, self.half_n_modes[0], self.half_n_modes[1], self.dv]
+#         if Wv == None:
+#             self.Wv = FactorizedTensor.new(
+#                         wv_shape,
+#                         rank=self.rank,
+#                         factorization=factorization,
+#                         fixed_rank_modes=fixed_rank_modes,
+#                         **tensor_kwargs,
+#                     )
+#             self.Wv.normal_(0, init_std)
+#         else:
+#             assert list(Wv.shape) == [n_modes[0], n_modes[1], self.dv], f"Wv.shape should be {[n_modes[0], n_modes[1], self.dv]}, found {Wv.shape}!"
+#             self.Wv = Wv
+
+#     def complex_softmax(self, z):
+#         mag = z.abs()
+#         softmax_mag = torch.nn.functional.softmax(mag, dim=0)
+#         softmax_real = softmax_mag * z.real / mag
+#         softmax_imag = softmax_mag * z.imag / mag
+#         softmax_z = torch.complex(softmax_real, softmax_imag)
+#         return softmax_z
+    
+#     def forward(self, partial_spetral, full_spetral):
+#         # partial_spetral: b c s1 r; full_spetral: b c s1 s2
+#         B, C, S1, R= partial_spetral.shape
+#         if partial_spetral.dtype == torch.complex32:
+#             einsum = einsum_complexhalf
+#         else:
+#             einsum = tl.einsum
+#         q = einsum('bcsr,hsk->bhckr', partial_spetral, self.Wq)
+#         k = einsum('bcst,hstk->bhck', full_spetral, self.Wk)
+#         v = einsum('bcst,hstv->bhcv', full_spetral, self.Wv)
+#         attn = self.complex_softmax(einsum("bhckr,bhdk->bhcdr", q, k))
+#         out = einsum("bhcdr,bhcv->bhvdr", attn, v).view(B, self.out_channels, S1, R)
+#         return out
 
 class SpectralConvAttn2d(BaseSpectralConv):
     """
@@ -413,6 +535,7 @@ class SpectralConvAttn2d(BaseSpectralConv):
         fft_norm="backward",
         device=None,
         dtype=None,
+        share_Wv_weight=False,
         **kwargs
     ):
         super().__init__(dtype=dtype, device=device)
@@ -424,7 +547,10 @@ class SpectralConvAttn2d(BaseSpectralConv):
         self.dk = dk
         self.n_heads = n_heads
         self.n_layers = n_layers
+
+        self.skip = 'mlp'
         
+        self.mlp_skip = (self.skip == 'mlp')
 
         # We index quadrands only
         # n_modes is the total number of modes kept along each dimension
@@ -468,6 +594,30 @@ class SpectralConvAttn2d(BaseSpectralConv):
             factorization = "Dense"  # No factorization
         if not factorization.lower().startswith("complex"):
             factorization = f"Complex{factorization}"
+        
+        self.share_Wv_weight=share_Wv_weight
+        if self.share_Wv_weight:
+            tensor_kwargs = decomposition_kwargs if decomposition_kwargs is not None else {}
+            self.dv = int(self.half_n_modes[0]/n_heads)
+            assert self.dv *n_heads == self.half_n_modes[0], "n_heads must be a divisor of out_channels!"
+            wv_shape = [n_heads, self.half_n_modes[0], self.half_n_modes[1], self.dv]
+            self.Wvs = nn.ModuleList(
+                [
+                    FactorizedTensor.new(
+                        wv_shape,
+                        rank=self.rank,
+                        factorization=factorization,
+                        fixed_rank_modes=fixed_rank_modes,
+                        **tensor_kwargs,
+                    )
+                    for _ in range(n_layers)
+                ]
+            )
+            for i in range(n_layers):
+                self.Wvs[i].normal_(0, init_std)
+
+        else: self.Wvs=[None for _ in range(n_layers)]
+
 
         self.attn_blocks_x = nn.ModuleList(
             [
@@ -481,8 +631,9 @@ class SpectralConvAttn2d(BaseSpectralConv):
                                         fixed_rank_modes=fixed_rank_modes,
                                         decomposition_kwargs=decomposition_kwargs,
                                         init_std=init_std,
+                                        Wv=self.Wvs[i]
                                         )
-                for _ in range(n_layers)
+                for i in range(n_layers)
             ]
         )
         
@@ -499,10 +650,27 @@ class SpectralConvAttn2d(BaseSpectralConv):
                                         fixed_rank_modes=fixed_rank_modes,
                                         decomposition_kwargs=decomposition_kwargs,
                                         init_std=init_std,
+                                        Wv=self.Wvs[i]
                                         )
-                for _ in range(n_layers)
+                for i in range(n_layers)
             ]
         )
+
+        if self.mlp_skip:
+            weight_shape = (in_channels, out_channels, *self.half_n_modes)
+            self.weight = nn.ModuleList(
+                    [
+                        FactorizedTensor.new(
+                            weight_shape[:2]+weight_shape[2+i%2:3+i%2],
+                            rank=self.rank,
+                            factorization=factorization,
+                            fixed_rank_modes=fixed_rank_modes,
+                        )
+                        for i in range(2 * n_layers)
+                    ]
+                )
+            for w in self.weight:
+                w.normal_(0, init_std)
     
     @property
     def incremental_n_modes(self):
@@ -566,6 +734,11 @@ class SpectralConvAttn2d(BaseSpectralConv):
         out_ft = x_ftx.new_zeros(B, I, M // 2 + 1, N)
         # out_ft.shape == [batch_size, in_dim, grid_size // 2 + 1, grid_size, 2]
 
+        if x_ftx.dtype == torch.complex32:
+            einsum = einsum_complexhalf
+        else:
+            einsum = tl.einsum
+
         slices = (
             slice(None),  # Equivalent to: [:,
             slice(None),  # ............... :,
@@ -580,32 +753,47 @@ class SpectralConvAttn2d(BaseSpectralConv):
         )
 
         out_ft[slices] = self.attn_blocks_x[indices](x_ftx[slices], x_ft[x_ft_slices])
+        if self.mlp_skip:
+            out_ft[slices] += einsum(
+                        "bixy,iox->boxy",
+                        x_ftx[slices], self.weight[2 * indices].to_tensor()
+                    )
 
         xx = torch.fft.irfft(out_ft, n=M, dim=-2, norm='ortho')
 
         # # # Dimesion Y # # #
-        x_fty = torch.fft.rfft(x, dim=-1, norm='ortho').permute(0, 1, 3, 2)
+        x_fty = torch.fft.rfft(x, dim=-1, norm='ortho')
         x_ft = x_ft.permute(0, 1, 3, 2)
         # x_fty.shape == [batch_size, in_dim, grid_size // 2 + 1, grid_size]
 
         out_ft = x_fty.new_zeros(B, I, N // 2 + 1, M)
         # out_ft.shape == [batch_size, in_dim, grid_size, grid_size // 2 + 1, 2]
+        slices1 = (
+            slice(None),  # Equivalent to: [:,
+            slice(None),  # ............... :,
+            slice(self.half_n_modes[1]),# :half_n_modes[1],
+            slice(None),  # ............... :,]
+        )
         slices = (
             slice(None),  # Equivalent to: [:,
             slice(None),  # ............... :,
-            slice(self.half_n_modes[1]),# :half_n_modes[0],
-            slice(None),  # ............... :,]
+            slice(None),  # ............... :,
+            slice(self.half_n_modes[1]),# :half_n_modes[1],]
         )
         x_ft_slices = (
             slice(None),  # Equivalent to: [:,
             slice(None),  # ............... :,
-            slice(self.half_n_modes[1]),  # :half_n_modes[0],
-            slice(self.half_n_modes[0]),  # :half_n_modes[1]]
+            slice(self.half_n_modes[1]),  # :half_n_modes[1],
+            slice(self.half_n_modes[0]),  # :half_n_modes[0]]
         )
-    
-
-        out_ft[slices] = self.attn_blocks_y[indices](x_fty[slices], x_ft[x_ft_slices])
+        out_ft[slices1] = self.attn_blocks_y[indices](x_fty[slices].permute(0, 1, 3, 2), x_ft[x_ft_slices])
         out_ft = out_ft.permute(0, 1, 3, 2)
+        
+        if self.mlp_skip:
+            out_ft[slices] += einsum(
+                        "bixy,ioy->boxy",
+                        x_fty[slices], self.weight[2 * indices].to_tensor()
+                    )
         
         xy = torch.fft.irfft(out_ft, n=N, dim=-1, norm='ortho')
         # x.shape == [batch_size, in_dim, grid_size, grid_size]

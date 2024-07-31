@@ -1,0 +1,37 @@
+CUDA_VISIBLE_DEVICES=0 \
+python -m scripts.train_fno_ns_contextual \
+    --data_path ../data/ns_contextual/ns_random_forces_top100_mu.h5 \
+    --test_data_path ../data/ns_contextual/ns_random_forces_top100_mu.h5 ../data/ns_contextual/ns_random_forces_top100_mu_k_4.h5 ../data/ns_contextual/ns_random_forces_bottom100_mu.h5 \
+    --data_name NS_Contextual_Fewshot_n25 \
+    --load_path ckpt/NS_Contextual_Fewshot_n25_FNO/timestep_10/layer_4/fact-tucker/rank_0.42/mix-prod-layer/prod_2/pos-enc-True/loss-h1/mode_21/hid_32/lift_256/proj_64/b_64/lr_0.001/wd_0.0001/sche-step_100/gamma_0.5/simaug_train_data_False/5-21-10-38/ep_480.pt\
+    --n_train 25 \
+    --n_test 25 \
+    --batch_size 64 \
+    --train_subsample_rate 4 \
+    --test_subsample_rate 4 \
+    --time_step 10 \
+    --n_modes 21 \
+    --num_prod 2 \
+    --n_layers 4 \
+    --pos_encoding True \
+    --hidden_channels 32 \
+    --lifting_channels 256 \
+    --projection_channels 64 \
+    --factorization tucker \
+    --rank 0.42 \
+    --lr 1e-3 \
+    --weight_decay 1e-4 \
+    --scheduler_steps 100 \
+    --scheduler_gamma 0.5 \
+    --train_loss h1 \
+    --time_suffix True \
+    --config_details True \
+    --log_interval 4 \
+    --save_interval 20 \
+    --epochs 501 \
+    --verbose True \
+    --random_seed False \
+    --seed 0 \
+    --simaug_train_data True \
+    --simaug_test_data True \
+    --channel_mixing prod-layer \

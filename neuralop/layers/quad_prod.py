@@ -15,7 +15,7 @@ def get_mat_index(index, column):
     return torch.tensor([i, j])
 
 class QuadPath(nn.Module):
-    def __init__(self, in_dim, out_dim, num_quad, num_prod):
+    def __init__(self, in_dim, out_dim, num_quad, num_prod, skip=True):
         super(QuadPath, self).__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
@@ -24,6 +24,7 @@ class QuadPath(nn.Module):
         self.out_range = torch.tensor(np.array(range(out_dim)), dtype=torch.int16)
         
         self.prep_stage = True
+        self.skip = skip
         # Stage 1 params
         self.quadratic = nn.Conv2d(self.in_dim, self.num_quad, 1)  # First transformation for quadratic
         self.quadratic.weight.data = self.gram_schmidt(self.quadratic.weight.data.squeeze()).unsqueeze(-1).unsqueeze(-1)  # Initialize weights orthogonally
@@ -38,9 +39,13 @@ class QuadPath(nn.Module):
             y_quadratic = self.quadratic(x)
             out_quadratic = torch.square(y_quadratic)
             out_quadratic = self.quad_linear(out_quadratic)
+            if self.skip:
+                out_quadratic += x
         else:
             out_quadratic = self.calc_quads(x)
             out_quadratic = self.prod_linear(out_quadratic)
+            if self.skip:
+                out_quadratic += x
 
         return out_quadratic
     
@@ -197,7 +202,6 @@ class ProductPath(nn.Module):
 
     def forward(self, x):
         return torch.stack([x[:, 2 *i, ...] * x[:, 2 *i + 1, ...] for i in self.range_prods], dim=1)
-
 
 class ProductGating(nn.Module):
     def __init__(self, in_dim, num_prod, clamp_thresh=16.):

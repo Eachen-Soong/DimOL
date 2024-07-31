@@ -44,7 +44,7 @@ def get_parser():
     parser.add_argument('--lifting_channels', type=int, default=256) #
     parser.add_argument('--projection_channels', type=int, default=64) #
     parser.add_argument('--factorization', type=str, default='F-FNO') #####
-    parser.add_argument('--channel_mixing', type=str, default='prod-layer', help='') #####
+    parser.add_argument('--channel_mixing', type=str, default='', help='') #####
     parser.add_argument('--rank', type=float, default=0.42, help='the compression rate of tensor') #
     parser.add_argument('--load_path', type=str, default='', help='load checkpoint')
 
@@ -63,7 +63,7 @@ def get_parser():
     parser.add_argument('--log_interval', type=int, default=4)
     parser.add_argument('--save_interval', type=int, default=20)
     # # # Trainer Configs # # #
-    parser.add_argument('--epochs', type=int, default=500) #
+    parser.add_argument('--epochs', type=int, default=501) #
     parser.add_argument('--verbose', type=bool, default=True)
     parser.add_argument('--random_seed', type=bool, default=False)
     parser.add_argument('--seed', type=int, default=0)
@@ -193,7 +193,7 @@ def run(args):
                     verbose=verbose)
 
     trainer.train(train_loader=train_loader,
-                test_loaders={resolution: test_loader},
+                test_loader={resolution: test_loader},
                 optimizer=optimizer, 
                 scheduler=scheduler, 
                 regularizer=False, 

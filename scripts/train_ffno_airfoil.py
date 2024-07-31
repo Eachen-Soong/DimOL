@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import torch.utils
 
-from neuralop.models import FNO
+from neuralop.models import F_FNO2D
 # from neuralop.models import FNO_2D_test1
 
 from neuralop.utils import count_params
@@ -62,6 +62,7 @@ def get_parser():
     parser.add_argument('--factorization', type=str, default='tucker') #####
     parser.add_argument('--channel_mixing', type=str, default='', help='') #####
     parser.add_argument('--rank', type=float, default=0.42, help='the compression rate of tensor') #
+    parser.add_argument('--load_path', type=str, default='', help='load checkpoint')
     # # # Optimizer Configs # # #
     parser.add_argument('--lr', type=float, default=1e-2) #
     parser.add_argument('--weight_decay', type=float, default=1e-4) #
@@ -77,7 +78,7 @@ def get_parser():
     parser.add_argument('--log_interval', type=int, default=4)
     parser.add_argument('--save_interval', type=int, default=20)
     # # # Trainer Configs # # #
-    parser.add_argument('--epochs', type=int, default=500) #
+    parser.add_argument('--epochs', type=int, default=501) #
     parser.add_argument('--verbose', type=bool, default=True)
     parser.add_argument('--random_seed', type=bool, default=False)
     parser.add_argument('--seed', type=int, default=0)
@@ -166,7 +167,7 @@ def run(args):
     n_modes=args.n_modes
     num_prod=args.num_prod
     in_channels = args.raw_in_channels
-    model = FNO(in_channels=in_channels, n_modes=(n_modes, n_modes), hidden_channels=args.hidden_channels, lifting_channels=args.lifting_channels,
+    model = F_FNO2D(in_channels=in_channels, n_modes=(n_modes, n_modes), hidden_channels=args.hidden_channels, lifting_channels=args.lifting_channels,
                 projection_channels=args.projection_channels, n_layers=args.n_layers, factorization=args.factorization, channel_mixing=args.channel_mixing, rank=args.rank, num_prod=num_prod)
     # model = FNO_2D_test1(in_dim=2, appended_dim=2, out_dim=1,
     #            modes1=n_modes, modes2=n_modes, width=args.hidden_channels)

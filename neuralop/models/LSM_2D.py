@@ -6,6 +6,7 @@ import torch.nn as nn
 import torch
 import numpy as np
 import math
+from ..layers.quad_prod import ProductLayer
 
 
 ################################################################
@@ -86,8 +87,89 @@ class OutConv(nn.Module):
 ################################################################
 # Patchify and Neural Spectral Block
 ################################################################
+# class NeuralSpectralBlock2d(nn.Module):
+#     def __init__(self, width, num_basis, patch_size=[3, 3], num_token=4):
+#         super(NeuralSpectralBlock2d, self).__init__()
+#         self.patch_size = patch_size
+#         self.width = width
+#         self.num_basis = num_basis
+
+#         # basis
+#         self.modes_list = (1.0 / float(num_basis)) * torch.tensor([i for i in range(num_basis)],
+#                                                                   dtype=torch.float).cuda()
+#         self.weights = nn.Parameter(
+#             (1 / (width)) * torch.rand(width, self.num_basis * 2, dtype=torch.float))
+#         # latent
+#         self.head = 8
+#         self.num_token = num_token
+#         self.latent = nn.Parameter(
+#             (1 / (width)) * torch.rand(self.head, self.num_token, width // self.head, dtype=torch.float))
+#         self.encoder_attn = nn.Conv2d(self.width, self.width * 2, kernel_size=1, stride=1)
+#         self.decoder_attn = nn.Conv2d(self.width, self.width, kernel_size=1, stride=1)
+#         self.softmax = nn.Softmax(dim=-1)
+
+#     def self_attn(self, q, k, v):
+#         # q,k,v: B H L C/H
+#         attn = self.softmax(torch.einsum("bhlc,bhsc->bhls", q, k))
+#         return torch.einsum("bhls,bhsc->bhlc", attn, v)
+
+#     def latent_encoder_attn(self, x):
+#         # x: B C H W
+#         B, C, H, W = x.shape
+#         L = H * W
+#         latent_token = self.latent[None, :, :, :].repeat(B, 1, 1, 1)
+#         x_tmp = self.encoder_attn(x).view(B, C * 2, -1).permute(0, 2, 1).contiguous() \
+#             .view(B, L, self.head, C // self.head, 2).permute(4, 0, 2, 1, 3).contiguous()
+#         latent_token = self.self_attn(latent_token, x_tmp[0], x_tmp[1]) + latent_token
+#         latent_token = latent_token.permute(0, 1, 3, 2).contiguous().view(B, C, self.num_token)
+#         return latent_token
+
+#     def latent_decoder_attn(self, x, latent_token):
+#         # x: B C L
+#         x_init = x
+#         B, C, H, W = x.shape
+#         L = H * W
+#         latent_token = latent_token.view(B, self.head, C // self.head, self.num_token).permute(0, 1, 3, 2).contiguous()
+#         x_tmp = self.decoder_attn(x).view(B, C, -1).permute(0, 2, 1).contiguous() \
+#             .view(B, L, self.head, C // self.head).permute(0, 2, 1, 3).contiguous()
+#         x = self.self_attn(x_tmp, latent_token, latent_token)
+#         x = x.permute(0, 1, 3, 2).contiguous().view(B, C, H, W) + x_init  # B H L C/H
+#         return x
+
+#     def get_basis(self, x):
+#         # x: B C N
+#         x_sin = torch.sin(self.modes_list[None, None, None, :] * x[:, :, :, None] * math.pi)
+#         x_cos = torch.cos(self.modes_list[None, None, None, :] * x[:, :, :, None] * math.pi)
+#         return torch.cat([x_sin, x_cos], dim=-1)
+
+#     def compl_mul2d(self, input, weights):
+#         return torch.einsum("bilm,im->bil", input, weights)
+
+#     def forward(self, x):
+#         B, C, H, W = x.shape
+#         # patchify
+#         x = x.view(x.shape[0], x.shape[1],
+#                    x.shape[2] // self.patch_size[0], self.patch_size[0], x.shape[3] // self.patch_size[1],
+#                    self.patch_size[1]).contiguous() \
+#             .permute(0, 2, 4, 1, 3, 5).contiguous() \
+#             .view(x.shape[0] * (x.shape[2] // self.patch_size[0]) * (x.shape[3] // self.patch_size[1]), x.shape[1],
+#                   self.patch_size[0],
+#                   self.patch_size[1])
+#         # Neural Spectral
+#         # (1) encoder
+#         latent_token = self.latent_encoder_attn(x)
+#         # (2) transition
+#         latent_token_modes = self.get_basis(latent_token)
+#         latent_token = self.compl_mul2d(latent_token_modes, self.weights) + latent_token
+#         # (3) decoder
+#         x = self.latent_decoder_attn(x, latent_token)
+#         # de-patchify
+#         x = x.view(B, (H // self.patch_size[0]), (W // self.patch_size[1]), C, self.patch_size[0],
+#                    self.patch_size[1]).permute(0, 3, 1, 4, 2, 5).contiguous() \
+#             .view(B, C, H, W).contiguous()
+#         return x  
 class NeuralSpectralBlock2d(nn.Module):
-    def __init__(self, width, num_basis, patch_size=[3, 3], num_token=4):
+    def __init__(self, width, num_basis, patch_size=[3, 3], num_token=4, channel_mixing='prod-layer', num_prods=2):
         super(NeuralSpectralBlock2d, self).__init__()
         self.patch_size = patch_size
         self.width = width
@@ -103,8 +185,17 @@ class NeuralSpectralBlock2d(nn.Module):
         self.num_token = num_token
         self.latent = nn.Parameter(
             (1 / (width)) * torch.rand(self.head, self.num_token, width // self.head, dtype=torch.float))
+        # if prod_layer:
+        #     self.encoder_attn = ProductLayer(in_dim=self.width, out_dim=self.width*2, num_prods=num_prods)
+        # else:
+        #     self.encoder_attn = nn.Conv2d(self.width, self.width * 2, kernel_size=1, stride=1)
+        # self.decoder_attn = nn.Conv2d(self.width, self.width, kernel_size=1, stride=1)
         self.encoder_attn = nn.Conv2d(self.width, self.width * 2, kernel_size=1, stride=1)
-        self.decoder_attn = nn.Conv2d(self.width, self.width, kernel_size=1, stride=1)
+        prod_layer = (channel_mixing=='prod-layer')
+        if prod_layer:
+            self.decoder_attn = ProductLayer(in_dim=self.width, out_dim=self.width, num_prods=num_prods)
+        else:
+            self.decoder_attn = nn.Conv2d(self.width, self.width, kernel_size=1, stride=1)
         self.softmax = nn.Softmax(dim=-1)
 
     def self_attn(self, q, k, v):
@@ -170,23 +261,13 @@ class NeuralSpectralBlock2d(nn.Module):
 
 
 class LSM_2D(nn.Module):
-    def __init__(self, 
-                 in_dim, out_dim, d_model, num_token, num_basis, patch_size, padding,
-                 bilinear=True):
+    def __init__(self, in_dim, out_dim, d_model, num_token, num_basis, patch_size, padding, bilinear=True, channel_mixing='', num_prod=2):
         super(LSM_2D, self).__init__()
-        self.in_channels = in_dim
         in_channels = in_dim
-        self.out_channels = out_dim
         out_channels = out_dim
-        self.width = d_model
+        self.in_channels = in_dim
+        self.out_channels = out_dim
         width = d_model
-        self.num_token = num_token
-        self.num_basis = num_basis
-        self.patch_size = patch_size
-        self.padding = padding
-        # patch_size = [int(x) for x in args.patch_size.split(',')]
-        # padding = [int(x) for x in args.padding.split(',')]
-
         # multiscale modules
         self.inc = DoubleConv(width, width)
         self.down1 = Down(width, width * 2)
@@ -200,11 +281,11 @@ class LSM_2D(nn.Module):
         self.up4 = Up(width * 2, width, bilinear)
         self.outc = OutConv(width, width)
         # Patchified Neural Spectral Blocks
-        self.process1 = NeuralSpectralBlock2d(width, num_basis, patch_size, num_token)
-        self.process2 = NeuralSpectralBlock2d(width * 2, num_basis, patch_size, num_token)
-        self.process3 = NeuralSpectralBlock2d(width * 4, num_basis, patch_size, num_token)
-        self.process4 = NeuralSpectralBlock2d(width * 8, num_basis, patch_size, num_token)
-        self.process5 = NeuralSpectralBlock2d(width * 16 // factor, num_basis, patch_size, num_token)
+        self.process1 = NeuralSpectralBlock2d(width, num_basis, patch_size, num_token, channel_mixing=channel_mixing, num_prods=num_prod)
+        self.process2 = NeuralSpectralBlock2d(width * 2, num_basis, patch_size, num_token, channel_mixing=channel_mixing, num_prods=num_prod)
+        self.process3 = NeuralSpectralBlock2d(width * 4, num_basis, patch_size, num_token, channel_mixing=channel_mixing, num_prods=num_prod)
+        self.process4 = NeuralSpectralBlock2d(width * 8, num_basis, patch_size, num_token, channel_mixing=channel_mixing, num_prods=num_prod)
+        self.process5 = NeuralSpectralBlock2d(width * 16 // factor, num_basis, patch_size, num_token, channel_mixing=channel_mixing, num_prods=num_prod)
         # projectors
         self.padding = padding
         self.fc0 = nn.Linear(in_channels, width)

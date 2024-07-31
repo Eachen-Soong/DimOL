@@ -34,7 +34,7 @@ def get_parser():
     parser.add_argument('--n_train', type=int, default=2)
     parser.add_argument('--n_test', nargs='+', type=int, default=1)
     parser.add_argument('--batch_size', type=int, default=32) #
-    parser.add_argument('--test_batch_size', type=int, default=128)
+    parser.add_argument('--test_batch_size', type=int, default=1)
     parser.add_argument('--train_subsample_rate', type=int, default=4)
     parser.add_argument('--test_subsample_rate', nargs='+',  type=int, default=4)
     parser.add_argument('--time_step', type=int, default=10)
@@ -42,14 +42,14 @@ def get_parser():
     parser.add_argument('--data_path', type=str, default='./data/ns_random_forces_1.h5', help="the path of data file")
     parser.add_argument('--test_data_path', nargs='+', type=str, default='', help="the path of test data file")
     parser.add_argument('--data_name', type=str, default='NS_Contextual', help="the name of dataset")
-    parser.add_argument('--simaug_train_data', type=int, default=0, help="whether to augment the dataset with similar ones")
-    parser.add_argument('--simaug_test_data', type=int, default=0, help="whether to augment the test dataset with similar ones")
+    parser.add_argument('--simaug_train_data', type=bool, default=False, help="whether to augment the dataset with similar ones")
+    parser.add_argument('--simaug_test_data', type=bool, default=False, help="whether to augment the test dataset with similar ones")
     # # # Model Configs # # #
     parser.add_argument('--n_modes', type=int, default=21) #
     parser.add_argument('--num_prod', type=int, default=2) #
     parser.add_argument('--n_layers', type=int, default=4) ##
     parser.add_argument('--raw_in_channels', type=int, default=3, help='TorusLi: 1; ns_contextual: 3')
-    parser.add_argument('--pos_encoding', type=int, default=1) ##
+    parser.add_argument('--pos_encoding', type=bool, default=True) ##
     parser.add_argument('--hidden_channels', type=int, default=32) #
     parser.add_argument('--lifting_channels', type=int, default=256) #
     parser.add_argument('--projection_channels', type=int, default=64) #
@@ -68,19 +68,19 @@ def get_parser():
     parser.add_argument('--log_path', type=str, default='./runs')
     parser.add_argument('--save_path', type=str, default='./ckpt')
     parser.add_argument('--prefix', type=str, default='', help='prefix of log and save file')
-    parser.add_argument('--time_suffix', type=int, default=1, help='whether to use program start time as suffix')
-    parser.add_argument('--config_details', type=int, default=2, help='whether to include config details to the log and save file name')
+    parser.add_argument('--time_suffix', type=bool, default=True, help='whether to use program start time as suffix')
+    parser.add_argument('--config_details', type=bool, default=True, help='whether to include config details to the log and save file name')
     parser.add_argument('--log_interval', type=int, default=4)
     parser.add_argument('--save_interval', type=int, default=20)
     # # # Trainer Configs # # #
     parser.add_argument('--epochs', type=int, default=501) #
-    parser.add_argument('--verbose', type=int, default=1)
-    parser.add_argument('--random_seed', type=int, default=1, help='whether to use random seed') 
+    parser.add_argument('--verbose', type=bool, default=True)
+    parser.add_argument('--random_seed', type=bool, default=False)
     parser.add_argument('--seed', type=int, default=0)
 
     return parser
 
-def run(args):
+def test(args):
     seed = args.seed
     if args.random_seed:
         import random
@@ -130,10 +130,6 @@ def run(args):
     sys.stdout.flush()
 
     # # # Optimizer Definition # # #
-    optimizer = torch.optim.Adam(model.parameters(), 
-                                    lr=args.lr, 
-                                    weight_decay=args.weight_decay)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.scheduler_steps, gamma=args.scheduler_gamma)
 
     # # # Loss Definition # # #
     l2loss = LpLoss(d=2, p=2)
@@ -146,78 +142,30 @@ def run(args):
     else: assert False, "Unsupported training loss!"
     eval_losses={'h1': h1loss, 'l2': l2loss}
 
-    if verbose:
-        print('\n### MODEL ###\n', model)
-        print('\n### OPTIMIZER ###\n', optimizer)
-        print('\n### SCHEDULER ###\n', scheduler)
-        print('\n### LOSSES ###')
-        print(f'\n * Train: {train_loss}')
-        print(f'\n * Test: {eval_losses}')
-        sys.stdout.flush()
 
-    # # # Logs and Saves Definition (path and file name) # # #
-    if not os.path.exists(args.log_path):
-        os.makedirs(args.log_path)
-    if not os.path.exists(args.save_path):
-        os.makedirs(args.save_path)
-    file_name = f'{args.data_name}_{args.model_name}'
-    prefix = args.prefix
-    if prefix != '': file_name = file_name + '_' + prefix
-    # config_name = ''
-    config_file_path=''
-    if args.config_details:
-        # config_name = f'_b{args.batch_size}_mode{args.n_modes}_prod{args.num_prod}_layer{args.n_layers}_hid{args.hidden_channels}_lift{args.lifting_channels}_proj{args.projection_channels}_fact-{args.factorization}_rank{args.rank}_mix-{args.channel_mixing}_pos-enc-{args.pos_encoding}_lr{args.lr}_wd{args.weight_decay}_sche-step{args.scheduler_steps}_gamma{args.scheduler_gamma}_loss{args.train_loss}'
-        config_file_path = f"/timestep_{args.time_step}/layer_{args.n_layers}/fact-{args.factorization}/rank_{args.rank}/mix-{args.channel_mixing}/prod_{args.num_prod}/pos-enc-{args.pos_encoding}/loss-{args.train_loss}/mode_{args.n_modes}/hid_{args.hidden_channels}/lift_{args.lifting_channels}/proj_{args.projection_channels}/b_{args.batch_size}/lr_{args.lr}/wd_{args.weight_decay}/sche-step_{args.scheduler_steps}/gamma_{args.scheduler_gamma}/simaug_train_data_{args.simaug_train_data}/"
-    time_name = ''
-    if args.time_suffix:
-        localtime = time.localtime(time.time())
-        time_name = f"{localtime.tm_mon}-{localtime.tm_mday}-{localtime.tm_hour}-{localtime.tm_min}"
-    # file_name = file_name + config_name + time_name
-    file_name = file_name + config_file_path + time_name
 
-    log_dir = args.log_path
-    if log_dir[-1]!='/': log_dir = log_dir + '/'
-    log_dir = log_dir + file_name
-    save_dir = args.save_path
-    if save_dir[-1]!='/': save_dir = save_dir + '/'
-    save_dir = save_dir + file_name
-
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-    
-    log_dir = Path(log_dir)
-    save_dir = Path(save_dir)
 
     # # # Trainer Definition # # #
     from scripts.ns_contextual_trainer import ns_contextual_trainer
 
-    trainer = ns_contextual_trainer(model=model, n_epochs=args.epochs,
-                    device=device,
-                    simaug_test_data=args.simaug_test_data,
-                    simaug_train_data=args.simaug_train_data,
-                    callbacks=[SimpleTensorBoardLoggerCallback(log_dir=log_dir),
-                               ModelCheckpointCallback(
-                                checkpoint_dir=save_dir,
-                                interval=args.save_interval)],
-                    scaling_ks=[1,], scaling_ps=[4,8,16],
-                    wandb_log=False,
-                    log_test_interval=args.log_interval,
-                    use_distributed=False,
-                    verbose=True)
 
-    trainer.train(train_loader=train_loader,
-                test_loaders=test_loaders,
-                optimizer=optimizer, 
-                scheduler=scheduler, 
-                regularizer=False, 
-                training_loss=train_loss, 
-                eval_losses=eval_losses)
+    for loader in test_loaders:
+        for item in loader:
+            out = model.forward(item)[0].squeeze().detach().cpu().numpy()
+            gt = item['y'][0].squeeze().detach().cpu().numpy()
+            lims = dict(cmap='RdBu_r', vmin=gt.min(), vmax=gt.max())
+            fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(12, 4))
+            ax[0].imshow(out)
+            ax[1].imshow(gt)
+            ax[2].imshow(out-gt)
+            fig.savefig(fname='./img/ns1')
+            fig.show()
+            break
+        break
 
     return
 
 if __name__ == '__main__':
     parser = get_parser()
     args = parser.parse_args()
-    run(args)
+    test(args)

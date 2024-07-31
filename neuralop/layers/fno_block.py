@@ -428,11 +428,29 @@ class FNOBlocks1(nn.Module):
         elif channel_mixing == 'prod-layer':
             self.channel_mixer = nn.ModuleList(
                 [
-                    ProductLayer(
-                        in_dim=self.out_channels,
-                        num_prods=num_prod,
-                        out_dim=self.out_channels,
+                    nn.Sequential(
+                        MLP(
+                            in_channels=self.out_channels,
+                            hidden_channels=round(self.out_channels * mlp_expansion),
+                            dropout=mlp_dropout,
+                            n_dim=self.n_dim,
+                            n_layers=1
+                        ),
+                        nn.SiLU(),
+                        ProductLayer(
+                            in_dim=self.out_channels,
+                            num_prods=num_prod,
+                            out_dim=self.out_channels,
+                            n_dim=self.n_dim
+                        )
                     )
+                    for _ in range(n_layers)
+                ]
+            )
+        elif channel_mixing == 'quad-layer':
+            self.channel_mixer = nn.ModuleList(
+                [
+                    QuadPath(in_dim=self.out_channels,out_dim=self.out_channels,num_quad=num_prod, num_prod=num_prod)
                     for _ in range(n_layers)
                 ]
             )

@@ -457,7 +457,7 @@ class SpectralConv(BaseSpectralConv):
             # if 'mixed', the above fft runs in full precision, but the
             # following operations run at half precision
             x = x.chalf()
-
+            
         if self.fno_block_precision in ["half", "mixed"]:
             out_fft = torch.zeros(
                 [batchsize, self.out_channels, *fft_size],

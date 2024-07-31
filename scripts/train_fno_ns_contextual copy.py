@@ -39,7 +39,7 @@ def get_parser():
     parser.add_argument('--test_subsample_rate', nargs='+',  type=int, default=4)
     parser.add_argument('--time_step', type=int, default=10)
     parser.add_argument('--predict_feature', type=str, default='u')
-    parser.add_argument('--data_path', type=str, default='./data/ns_random_forces_1.h5', help="the path of data file")
+    parser.add_argument('--data_path', nargs='+', type=str, default='./data/ns_random_forces_1.h5', help="the path of data file")
     parser.add_argument('--test_data_path', nargs='+', type=str, default='', help="the path of test data file")
     parser.add_argument('--data_name', type=str, default='NS_Contextual', help="the name of dataset")
     parser.add_argument('--simaug_train_data', type=int, default=0, help="whether to augment the dataset with similar ones")
@@ -209,6 +209,142 @@ def run(args):
 
     trainer.train(train_loader=train_loader,
                 test_loaders=test_loaders,
+                optimizer=optimizer, 
+                scheduler=scheduler, 
+                regularizer=False, 
+                training_loss=train_loss, 
+                eval_losses=eval_losses)
+
+    return
+
+def run(args):
+    seed = args.seed
+    if args.random_seed:
+        import random
+        seed = random.randint(1, 10000)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    verbose = args.verbose
+    # # # Data Preparation # # #
+    n_train = args.n_train
+    n_test = args.n_test
+    batch_size = args.batch_size
+    test_batch_size = args.test_batch_size
+    train_subsample_rate = args.train_subsample_rate
+    test_subsample_rate = args.test_subsample_rate
+    time_step = args.time_step
+    # data_path = args.data_path
+    train_loader, test_loader = load_autoregressive_traintestsplit_v3(
+        n_train, n_test,
+        batch_size, test_batch_size,
+        train_subsample_rate, test_subsample_rate,
+        time_step,
+        train_data_paths=args.train_data_path,
+        test_data_paths=args.test_data_path,
+        predict_feature=args.predict_feature,
+        append_positional_encoding=args.pos_encoding
+    )
+
+    # # # Model Definition # # #
+    n_modes=args.n_modes
+    num_prod=args.num_prod
+    in_channels = args.raw_in_channels
+    if args.pos_encoding:
+        in_channels += 2
+    model = FNO(in_channels=in_channels, n_modes=(n_modes, n_modes), hidden_channels=args.hidden_channels, lifting_channels=args.lifting_channels,
+                projection_channels=args.projection_channels, n_layers=args.n_layers, factorization=args.factorization, channel_mixing=args.channel_mixing, rank=args.rank, num_prod=num_prod)
+    
+    if args.load_path != '':
+        model.load_state_dict(torch.load(args.load_path))
+
+    model = model.to(device)
+
+    n_params = count_params(model)
+    print(f'\nOur model has {n_params} parameters.')
+    sys.stdout.flush()
+
+    # # # Optimizer Definition # # #
+    optimizer = torch.optim.Adam(model.parameters(), 
+                                    lr=args.lr, 
+                                    weight_decay=args.weight_decay)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.scheduler_steps, gamma=args.scheduler_gamma)
+
+    # # # Loss Definition # # #
+    l2loss = LpLoss(d=2, p=2)
+    h1loss = H1Loss(d=2)
+
+    if args.train_loss == 'h1':
+        train_loss = h1loss
+    elif args.train_loss == 'l2':
+        train_loss = l2loss
+    else: assert False, "Unsupported training loss!"
+    eval_losses={'h1': h1loss, 'l2': l2loss}
+
+    if verbose:
+        print('\n### MODEL ###\n', model)
+        print('\n### OPTIMIZER ###\n', optimizer)
+        print('\n### SCHEDULER ###\n', scheduler)
+        print('\n### LOSSES ###')
+        print(f'\n * Train: {train_loss}')
+        print(f'\n * Test: {eval_losses}')
+        sys.stdout.flush()
+
+    # # # Logs and Saves Definition (path and file name) # # #
+    if not os.path.exists(args.log_path):
+        os.makedirs(args.log_path)
+    if not os.path.exists(args.save_path):
+        os.makedirs(args.save_path)
+    file_name = f'{args.data_name}_{args.model_name}'
+    prefix = args.prefix
+    if prefix != '': file_name = file_name + '_' + prefix
+    # config_name = ''
+    config_file_path=''
+    if args.config_details:
+        # config_name = f'_b{args.batch_size}_mode{args.n_modes}_prod{args.num_prod}_layer{args.n_layers}_hid{args.hidden_channels}_lift{args.lifting_channels}_proj{args.projection_channels}_fact-{args.factorization}_rank{args.rank}_mix-{args.channel_mixing}_pos-enc-{args.pos_encoding}_lr{args.lr}_wd{args.weight_decay}_sche-step{args.scheduler_steps}_gamma{args.scheduler_gamma}_loss{args.train_loss}'
+        config_file_path = f"/timestep_{args.time_step}/layer_{args.n_layers}/fact-{args.factorization}/rank_{args.rank}/mix-{args.channel_mixing}/prod_{args.num_prod}/pos-enc-{args.pos_encoding}/loss-{args.train_loss}/mode_{args.n_modes}/hid_{args.hidden_channels}/lift_{args.lifting_channels}/proj_{args.projection_channels}/b_{args.batch_size}/lr_{args.lr}/wd_{args.weight_decay}/sche-step_{args.scheduler_steps}/gamma_{args.scheduler_gamma}/simaug_train_data_{args.simaug_train_data}/"
+    time_name = ''
+    if args.time_suffix:
+        localtime = time.localtime(time.time())
+        time_name = f"{localtime.tm_mon}-{localtime.tm_mday}-{localtime.tm_hour}-{localtime.tm_min}"
+    # file_name = file_name + config_name + time_name
+    file_name = file_name + config_file_path + time_name
+
+    log_dir = args.log_path
+    if log_dir[-1]!='/': log_dir = log_dir + '/'
+    log_dir = log_dir + file_name
+    save_dir = args.save_path
+    if save_dir[-1]!='/': save_dir = save_dir + '/'
+    save_dir = save_dir + file_name
+
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    
+    log_dir = Path(log_dir)
+    save_dir = Path(save_dir)
+
+    # # # Trainer Definition # # #
+    from scripts.ns_contextual_trainer import ns_contextual_trainer
+    print(args.simaug_test_data, args.simaug_train_data, args.random_seed, args.lr)
+    trainer = ns_contextual_trainer(model=model, n_epochs=args.epochs,
+                    device=device,
+                    simaug_test_data=args.simaug_test_data,
+                    simaug_train_data=args.simaug_train_data,
+                    callbacks=[SimpleTensorBoardLoggerCallback(log_dir=log_dir),
+                               ModelCheckpointCallback(
+                                checkpoint_dir=save_dir,
+                                interval=args.save_interval)],
+                    scaling_ks=[1,], scaling_ps=[4,8,16],
+                    wandb_log=False,
+                    log_test_interval=args.log_interval,
+                    use_distributed=False,
+                    verbose=True)
+
+    trainer.train(train_loader=train_loader,
+                test_loader=test_loader,
                 optimizer=optimizer, 
                 scheduler=scheduler, 
                 regularizer=False, 

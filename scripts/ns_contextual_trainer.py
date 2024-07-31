@@ -124,14 +124,14 @@ class SimilarDataloadersCallback(Callback):
         the callback would automatically generate similar dataloaders, 
         and udpates them to the original loaders dict.
     """
-    def __init__(self, scaling_ks, scaling_ps, train_aug=True, test_aug=False):
+    def __init__(self, scaling_ks, scaling_ps, train_aug=False, test_aug=False):
         super().__init__()
         self.scaling_ks = scaling_ks
         self.scaling_ps = scaling_ps
         self.train_aug = train_aug
         self.test_aug = test_aug
 
-    def on_train_start(self, train_loader, test_loaders, **kwargs):
+    def on_train_start(self, train_loader, test_loader, **kwargs):
         self.scaling_ks = self.scaling_ks
         self.scaling_ps = self.scaling_ps
         if isinstance(train_loader, torch.utils.data.DataLoader):
@@ -142,7 +142,8 @@ class SimilarDataloadersCallback(Callback):
             pass
         else:
             raise ValueError("train_loaders must be either a DataLoader or a dictionary of DataLoader instances.")
-
+        print(type(train_loader))
+        print(train_loader.keys())
         dict_k_loaders = gen_similar_dataloaders_dt_times_k(train_loader['default'], scaling_ks=self.scaling_ks)
         dict_p_loaders = gen_similar_dataloaders_dt_divided_p(train_loader['default'], scaling_ps=self.scaling_ps)
 
@@ -158,9 +159,9 @@ class SimilarDataloadersCallback(Callback):
             sys.stdout.flush()
         
         if self.test_aug:
-            test_loaders.update(dict_k_loaders)
-            test_loaders.update(dict_p_loaders)
-        for key, loader in test_loaders.items():
+            test_loader.update(dict_k_loaders)
+            test_loader.update(dict_p_loaders)
+        for key, loader in test_loader.items():
             item = None
             # print(loader.__len__())
             for item in loader:
@@ -178,13 +179,14 @@ class ns_contextual_trainer(Trainer):
                  amp_autocast=False, 
                  callbacks = [], 
                  scaling_ks=[1,4,16,64], scaling_ps=[1,4,16,64],
-                 simaug_test_data=False, simaug_train_data=True, 
+                 simaug_test_data=False, simaug_train_data=False, 
                  log_test_interval=1, 
                  log_output=False, 
                  use_distributed=False, 
                  checkpoint_to_load: pathlib.Path=None, 
                  verbose=True):
         if simaug_test_data or simaug_train_data:
+            print(simaug_test_data, simaug_train_data)
             callbacks.append(SimilarDataloadersCallback(scaling_ks=scaling_ks, scaling_ps=scaling_ps, 
                                                         train_aug=simaug_train_data, test_aug=simaug_test_data))
         super(ns_contextual_trainer, self).__init__(

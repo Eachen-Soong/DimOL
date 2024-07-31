@@ -12,7 +12,7 @@ from neuralop.models import F_FNO2D
 # from neuralop.training import OutputEncoderCallback
 from neuralop.utils import count_params
 from neuralop import LpLoss, H1Loss
-from neuralop.datasets.autoregressive_dataset import load_autoregressive_traintestsplit_v1
+from neuralop.datasets.autoregressive_dataset import load_autoregressive_traintestsplit_v2
 from neuralop.training import MultipleInputCallback, SimpleTensorBoardLoggerCallback, ModelCheckpointCallback
 
 import os
@@ -40,6 +40,7 @@ def get_parser():
     parser.add_argument('--time_step', type=int, default=1)
     parser.add_argument('--predict_feature', type=str, default='u')
     parser.add_argument('--data_path', type=str, default='./data/ns_random_forces_1.h5', help="the path of data file")
+    parser.add_argument('--test_data_path', type=str, default='', help="the path of test data file")
     parser.add_argument('--data_name', type=str, default='NS_Contextual', help="the name of dataset")
     # # # Model Configs # # #
     parser.add_argument('--n_modes', type=int, default=21) #
@@ -70,7 +71,7 @@ def get_parser():
     parser.add_argument('--log_interval', type=int, default=4)
     parser.add_argument('--save_interval', type=int, default=20)
     # # # Trainer Configs # # #
-    parser.add_argument('--epochs', type=int, default=500) #
+    parser.add_argument('--epochs', type=int, default=501) #
     parser.add_argument('--verbose', type=bool, default=True)
     parser.add_argument('--random_seed', type=bool, default=False)
     parser.add_argument('--seed', type=int, default=0)
@@ -97,12 +98,13 @@ def run(args):
     time_step = args.time_step
     # data_path = "/home/yichen/repo/cfd/myFNO/data/zongyi/NavierStokes_V1e-5_N1200_T20.mat"
     data_path = args.data_path
-    train_loader, test_loader = load_autoregressive_traintestsplit_v1(
+    train_loader, test_loader = load_autoregressive_traintestsplit_v2(
         data_path,
         n_train, n_test,
         batch_size, test_batch_size,
         train_subsample_rate, test_subsample_rate,
         time_step,
+        test_data_path=args.test_data_path,
         predict_feature=args.predict_feature,
         append_positional_encoding=args.pos_encoding
     )
@@ -198,14 +200,14 @@ def run(args):
                                ModelCheckpointCallback(
                                 checkpoint_dir=save_dir,
                                 interval=args.save_interval)],
-                    scaling_ks=[4,16], scaling_ps=[4,16],
+                    scaling_ks=[2], scaling_ps=[4,16],
                     wandb_log=False,
                     log_test_interval=args.log_interval,
                     use_distributed=False,
                     verbose=True)
 
     trainer.train(train_loader=train_loader,
-                test_loaders={resolution: test_loader},
+                test_loader={resolution: test_loader},
                 optimizer=optimizer, 
                 scheduler=scheduler, 
                 regularizer=False, 

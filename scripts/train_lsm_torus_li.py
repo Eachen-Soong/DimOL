@@ -31,7 +31,7 @@ def get_parser():
     parser.add_argument('--batch_size', type=int, default=20) #
     parser.add_argument('--train_subsample_rate', type=int, default=1)
     parser.add_argument('--test_subsample_rate', type=int, default=1)
-    parser.add_argument('--time_step', type=int, default=1)
+    parser.add_argument('--time_step', type=int, default=10)
     parser.add_argument('--predict_feature', type=str, default='u')
     parser.add_argument('--data_path', type=str, default='./', help="the path of data file")
     parser.add_argument('--data_name', type=str, default='TorusLi', help="the name of dataset")
@@ -54,6 +54,8 @@ def get_parser():
     parser.add_argument('--num-token', default=4, type=int, help='number of latent tokens')
     parser.add_argument('--patch-size', default='4,4', type=str, help='patch size of different dimensions')
     parser.add_argument('--padding', default='0,0', type=str, help='padding size of different dimensions')
+    parser.add_argument('--channel_mixing', type=str, default='', help='') #####
+    parser.add_argument('--num_prod', type=int, default=2) #
     # # # # Optimizer Configs # # #
     parser.add_argument('--lr', type=float, default=1e-3) #
     parser.add_argument('--weight_decay', type=float, default=1e-4) #
@@ -69,7 +71,7 @@ def get_parser():
     parser.add_argument('--log_interval', type=int, default=4)
     parser.add_argument('--save_interval', type=int, default=20)
     # # # Trainer Configs # # #
-    parser.add_argument('--epochs', type=int, default=500) #
+    parser.add_argument('--epochs', type=int, default=501) #
     parser.add_argument('--verbose', type=bool, default=True)
     parser.add_argument('--random_seed', type=bool, default=False)
     parser.add_argument('--seed', type=int, default=0)
@@ -119,8 +121,8 @@ def run(args):
     padding = [int(x) for x in args.padding.split(',')]
 
 
-    model = model = LSM_2D(in_dim=in_channels, out_dim=out_channels, d_model=width,
-                           num_token=num_token, num_basis=num_basis, patch_size=patch_size, padding=padding)
+    model = LSM_2D(in_dim=in_channels, out_dim=out_channels, d_model=width,
+                           num_token=num_token, num_basis=num_basis, patch_size=patch_size, padding=padding, channel_mixing=args.channel_mixing, num_prod=args.num_prod)
 
     model = model.to(device)
 
@@ -201,7 +203,7 @@ def run(args):
                     verbose=verbose)
 
     trainer.train(train_loader=train_loader,
-                test_loaders={resolution: test_loader},
+                test_loader={resolution: test_loader},
                 optimizer=optimizer, 
                 scheduler=scheduler, 
                 regularizer=False, 

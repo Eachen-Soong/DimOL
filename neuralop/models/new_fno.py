@@ -602,7 +602,7 @@ class F_FNO2D(nn.Module):
                 output_scaling_factor = [output_scaling_factor] * self.n_layers
         self.output_scaling_factor = output_scaling_factor
 
-        self.fno_blocks = FNOBlocks1(
+        self.fno_blocks = F_FNOBlocks2D(
             in_channels=hidden_channels,
             out_channels=hidden_channels,
             n_modes=self.n_modes,
@@ -919,7 +919,7 @@ def partialclass(new_name, cls, *args, **kwargs):
     )
     return new_class
 
-SpecProdFNO = TFNO = partialclass("SpecProdFNO", FNO, SpectralConv=SpectralConvProd)
+SpecProdFNO = partialclass("SpecProdFNO", FNO, SpectralConv=SpectralConvProd)
 TFNO = partialclass("TFNO", FNO, factorization="Tucker")
 TFNO1d = partialclass("TFNO1d", FNO1d, factorization="Tucker")
 TFNO2d = partialclass("TFNO2d", FNO2d, factorization="Tucker")

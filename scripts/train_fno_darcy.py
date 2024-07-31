@@ -42,8 +42,8 @@ def get_parser():
     parser.add_argument('--hidden_channels', type=int, default=32) #
     parser.add_argument('--lifting_channels', type=int, default=256) #
     parser.add_argument('--projection_channels', type=int, default=64) #
-    parser.add_argument('--factorization', type=str, default='tucker') #####
-    parser.add_argument('--channel_mixing', type=str, default='prod-layer', help='') #####
+    parser.add_argument('--factorization', type=str, default='') #####
+    parser.add_argument('--channel_mixing', type=str, default='', help='') #####
     parser.add_argument('--rank', type=float, default=0.42, help='the compression rate of tensor') #
     parser.add_argument('--load_path', type=str, default='', help='load checkpoint')
 
@@ -62,7 +62,7 @@ def get_parser():
     parser.add_argument('--log_interval', type=int, default=4)
     parser.add_argument('--save_interval', type=int, default=20)
     # # # Trainer Configs # # #
-    parser.add_argument('--epochs', type=int, default=500) #
+    parser.add_argument('--epochs', type=int, default=501) #
     parser.add_argument('--verbose', type=bool, default=True)
     parser.add_argument('--random_seed', type=bool, default=False)
     parser.add_argument('--seed', type=int, default=0)
@@ -89,7 +89,7 @@ def run(args):
     # time_step = args.time_step
     # data_path = "/home/yichen/repo/cfd/myFNO/data/zongyi/NavierStokes_V1e-5_N1200_T20.mat"
     data_path = args.data_path
-    train_loader, test_loaders, encoder= load_darcy_mat(
+    train_loader, test_loader, encoder= load_darcy_mat(
         data_path=data_path, n_train=n_train, n_test=n_test, batch_size=batch_size, test_batch_size=test_batch_size,
         train_ssr=train_subsample_rate, test_ssrs=[test_subsample_rate]
     )
@@ -188,7 +188,7 @@ def run(args):
                     verbose=verbose)
 
     trainer.train(train_loader=train_loader,
-                test_loaders=test_loaders,
+                test_loader=test_loader,
                 optimizer=optimizer, 
                 scheduler=scheduler, 
                 regularizer=False, 

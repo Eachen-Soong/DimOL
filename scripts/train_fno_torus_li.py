@@ -30,7 +30,7 @@ def get_parser():
     parser.add_argument('--batch_size', type=int, default=32) #
     parser.add_argument('--train_subsample_rate', type=int, default=1)
     parser.add_argument('--test_subsample_rate', type=int, default=1)
-    parser.add_argument('--time_step', type=int, default=1)
+    parser.add_argument('--time_step', type=int, default=10)
     parser.add_argument('--predict_feature', type=str, default='u')
     parser.add_argument('--data_path', type=str, default='./', help="the path of data file")
     parser.add_argument('--data_name', type=str, default='TorusLi', help="the name of dataset")
@@ -43,8 +43,8 @@ def get_parser():
     parser.add_argument('--hidden_channels', type=int, default=32) #
     parser.add_argument('--lifting_channels', type=int, default=256) #
     parser.add_argument('--projection_channels', type=int, default=64) #
-    parser.add_argument('--factorization', type=str, default='tucker') #####
-    parser.add_argument('--channel_mixing', type=str, default='prod-layer', help='') #####
+    parser.add_argument('--factorization', type=str, default='') #####
+    parser.add_argument('--channel_mixing', type=str, default='', help='') #####
     parser.add_argument('--rank', type=float, default=0.42, help='the compression rate of tensor') #
     parser.add_argument('--load_path', type=str, default='', help='load checkpoint')
 
@@ -63,7 +63,7 @@ def get_parser():
     parser.add_argument('--log_interval', type=int, default=4)
     parser.add_argument('--save_interval', type=int, default=20)
     # # # Trainer Configs # # #
-    parser.add_argument('--epochs', type=int, default=500) #
+    parser.add_argument('--epochs', type=int, default=501) #
     parser.add_argument('--verbose', type=bool, default=True)
     parser.add_argument('--random_seed', type=bool, default=False)
     parser.add_argument('--seed', type=int, default=0)
@@ -107,7 +107,9 @@ def run(args):
     if args.pos_encoding:
         in_channels += 2
     model = FNO(in_channels=in_channels, n_modes=(n_modes, n_modes), hidden_channels=args.hidden_channels, lifting_channels=args.lifting_channels,
-                projection_channels=args.projection_channels, n_layers=args.n_layers, factorization=args.factorization, channel_mixing=args.channel_mixing, rank=args.rank, num_prod=num_prod)
+                projection_channels=args.projection_channels, n_layers=args.n_layers, factorization=args.factorization, channel_mixing=args.channel_mixing, rank=args.rank, num_prod=num_prod, 
+                # stabilizer='tanh'
+                )
     
     if args.load_path != '':
         model.load_state_dict(torch.load(args.load_path))
@@ -193,7 +195,7 @@ def run(args):
                     verbose=verbose)
 
     trainer.train(train_loader=train_loader,
-                test_loaders={resolution: test_loader},
+                test_loader={resolution: test_loader},
                 optimizer=optimizer, 
                 scheduler=scheduler, 
                 regularizer=False, 

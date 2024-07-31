@@ -24,7 +24,7 @@ import argparse
 def get_parser():
     parser = argparse.ArgumentParser('Latent Spectral Models', add_help=False)
     parser.add_argument('--model', type=str, default='LSM')
-    parser.add_argument('--model_name',  type=str, default='LSM')
+    parser.add_argument('--model_name',  type=str, default='LSM_prod')
     # # # Data Loader Configs # # #
     parser.add_argument('--n_train', type=int, default=1000)
     parser.add_argument('--n_test', type=int, default=200)
@@ -69,7 +69,7 @@ def get_parser():
     parser.add_argument('--log_interval', type=int, default=4)
     parser.add_argument('--save_interval', type=int, default=20)
     # # # Trainer Configs # # #
-    parser.add_argument('--epochs', type=int, default=500) #
+    parser.add_argument('--epochs', type=int, default=501) #
     parser.add_argument('--verbose', type=bool, default=True)
     parser.add_argument('--random_seed', type=bool, default=False)
     parser.add_argument('--seed', type=int, default=0)
@@ -97,7 +97,7 @@ def run(args):
     time_step = args.time_step
     # data_path = "/home/yichen/repo/cfd/myFNO/data/zongyi/NavierStokes_V1e-5_N1200_T20.mat"
     data_path = args.data_path
-    train_loader, test_loaders, encoder= load_darcy_mat(
+    train_loader, test_loader, encoder= load_darcy_mat(
         data_path=data_path, n_train=n_train, n_test=n_test, batch_size=batch_size, test_batch_size=test_batch_size,
         train_ssr=train_subsample_rate, test_ssrs=[test_subsample_rate]
     )
@@ -197,7 +197,7 @@ def run(args):
                     verbose=verbose)
 
     trainer.train(train_loader=train_loader,
-                test_loaders=test_loaders,
+                test_loader=test_loader,
                 optimizer=optimizer, 
                 scheduler=scheduler, 
                 regularizer=False, 

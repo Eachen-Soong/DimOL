@@ -43,7 +43,8 @@ def get_parser():
     parser.add_argument('--lifting_channels', type=int, default=256) #
     parser.add_argument('--projection_channels', type=int, default=64) #
     parser.add_argument('--factorization', type=str, default='F-FNO') #####
-    parser.add_argument('--channel_mixing', type=str, default='prod-layer', help='') #####
+    parser.add_argument('--channel_mixing', type=str, default='', help='') #####
+    parser.add_argument('--ffno_channel_mixing', type=str, default='', help='') #####
     parser.add_argument('--rank', type=float, default=0.42, help='the compression rate of tensor') #
     parser.add_argument('--load_path', type=str, default='', help='load checkpoint')
 
@@ -62,7 +63,7 @@ def get_parser():
     parser.add_argument('--log_interval', type=int, default=4)
     parser.add_argument('--save_interval', type=int, default=20)
     # # # Trainer Configs # # #
-    parser.add_argument('--epochs', type=int, default=500) #
+    parser.add_argument('--epochs', type=int, default=501) #
     parser.add_argument('--verbose', type=bool, default=True)
     parser.add_argument('--random_seed', type=bool, default=False)
     parser.add_argument('--seed', type=int, default=0)
@@ -89,7 +90,7 @@ def run(args):
     time_step = args.time_step
     # data_path = "/home/yichen/repo/cfd/myFNO/data/zongyi/NavierStokes_V1e-5_N1200_T20.mat"
     data_path = args.data_path
-    train_loader, test_loaders, encoder= load_darcy_mat(
+    train_loader, test_loader, encoder= load_darcy_mat(
         data_path=data_path, n_train=n_train, n_test=n_test, batch_size=batch_size, test_batch_size=test_batch_size,
         train_ssr=train_subsample_rate, test_ssrs=[test_subsample_rate]
     )
@@ -101,7 +102,7 @@ def run(args):
     if args.pos_encoding:
         in_channels += 2
     model = F_FNO2D(in_channels=in_channels, n_modes=(n_modes, n_modes), hidden_channels=args.hidden_channels, lifting_channels=args.lifting_channels,
-                projection_channels=args.projection_channels, n_layers=args.n_layers, channel_mixing=args.channel_mixing, rank=args.rank, num_prod=num_prod)
+                projection_channels=args.projection_channels, n_layers=args.n_layers, channel_mixing=args.channel_mixing, rank=args.rank, num_prod=num_prod, ffno_channel_mixing=args.ffno_channel_mixing)
     
     if args.load_path != '':
         model.load_state_dict(torch.load(args.load_path))
@@ -151,7 +152,7 @@ def run(args):
     config_file_path=''
     if args.config_details:
         # config_name = f'_b{args.batch_size}_mode{args.n_modes}_prod{args.num_prod}_layer{args.n_layers}_hid{args.hidden_channels}_lift{args.lifting_channels}_proj{args.projection_channels}_fact-{args.factorization}_rank{args.rank}_mix-{args.channel_mixing}_pos-enc-{args.pos_encoding}_lr{args.lr}_wd{args.weight_decay}_sche-step{args.scheduler_steps}_gamma{args.scheduler_gamma}_loss{args.train_loss}'
-        config_file_path = f"/layer_{args.n_layers}/fact-{args.factorization}/rank_{args.rank}/mix-{args.channel_mixing}/prod_{args.num_prod}/pos-enc-{args.pos_encoding}/loss-{args.train_loss}/mode_{args.n_modes}/hid_{args.hidden_channels}/lift_{args.lifting_channels}/proj_{args.projection_channels}/b_{args.batch_size}/lr_{args.lr}/wd_{args.weight_decay}/sche-step_{args.scheduler_steps}/gamma_{args.scheduler_gamma}/"
+        config_file_path = f"/layer_{args.n_layers}/fact-{args.factorization}/rank_{args.rank}/mix-{args.channel_mixing}/ffno-mix-{args.ffno_channel_mixing}/prod_{args.num_prod}/pos-enc-{args.pos_encoding}/loss-{args.train_loss}/mode_{args.n_modes}/hid_{args.hidden_channels}/lift_{args.lifting_channels}/proj_{args.projection_channels}/b_{args.batch_size}/lr_{args.lr}/wd_{args.weight_decay}/sche-step_{args.scheduler_steps}/gamma_{args.scheduler_gamma}/"
     time_name = ''
     if args.time_suffix:
         localtime = time.localtime(time.time())
@@ -188,7 +189,7 @@ def run(args):
                     verbose=verbose)
 
     trainer.train(train_loader=train_loader,
-                test_loaders=test_loaders,
+                test_loader=test_loader,
                 optimizer=optimizer, 
                 scheduler=scheduler, 
                 regularizer=False, 
