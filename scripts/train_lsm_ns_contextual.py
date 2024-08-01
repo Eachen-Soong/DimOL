@@ -174,7 +174,7 @@ def run(args):
     config_file_path=''
     if args.config_details:
         # config_name = f'_b{args.batch_size}_mode{args.n_modes}_prod{args.num_prod}_layer{args.n_layers}_hid{args.hidden_channels}_lift{args.lifting_channels}_proj{args.projection_channels}_fact-{args.factorization}_rank{args.rank}_mix-{args.channel_mixing}_pos-enc-{args.pos_encoding}_lr{args.lr}_wd{args.weight_decay}_sche-step{args.scheduler_steps}_gamma{args.scheduler_gamma}_loss{args.train_loss}'
-        config_file_path = f"/width_{args.d_model}/pos-enc-{args.pos_encoding}/num_token{args.num_token}/num_basis_{args.num_basis}/patch_size_{args.patch_size}/padding_{args.padding}/mix-{args.channel_mixing}/loss-{args.train_loss}/b_{args.batch_size}/lr_{args.lr}/wd_{args.weight_decay}/sche-step_{args.scheduler_steps}/gamma_{args.scheduler_gamma}/"
+        config_file_path = f"/width_{args.d_model}/pos-enc-{args.pos_encoding}/num_token{args.num_token}/num_basis_{args.num_basis}/patch_size_{args.patch_size}/padding_{args.padding}/mix-{args.channel_mixing}/prod-{args.num_prod}/loss-{args.train_loss}/b_{args.batch_size}/lr_{args.lr}/wd_{args.weight_decay}/sche-step_{args.scheduler_steps}/gamma_{args.scheduler_gamma}/"
     if args.time_suffix:
         localtime = time.localtime(time.time())
         time_name = f"{localtime.tm_mon}-{localtime.tm_mday}-{localtime.tm_hour}-{localtime.tm_min}"
