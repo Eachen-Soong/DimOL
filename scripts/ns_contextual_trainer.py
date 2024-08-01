@@ -131,7 +131,7 @@ class SimilarDataloadersCallback(Callback):
         self.train_aug = train_aug
         self.test_aug = test_aug
 
-    def on_train_start(self, train_loader, test_loader, **kwargs):
+    def on_train_start(self, train_loader, test_loaders, **kwargs):
         self.scaling_ks = self.scaling_ks
         self.scaling_ps = self.scaling_ps
         if isinstance(train_loader, torch.utils.data.DataLoader):
@@ -159,9 +159,9 @@ class SimilarDataloadersCallback(Callback):
             sys.stdout.flush()
         
         if self.test_aug:
-            test_loader.update(dict_k_loaders)
-            test_loader.update(dict_p_loaders)
-        for key, loader in test_loader.items():
+            test_loaders.update(dict_k_loaders)
+            test_loaders.update(dict_p_loaders)
+        for key, loader in test_loaders.items():
             item = None
             # print(loader.__len__())
             for item in loader:

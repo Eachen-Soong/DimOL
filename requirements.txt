@@ -11,3 +11,4 @@ zarr
 einops
 torchvision
 tensorboard
+tqdm
