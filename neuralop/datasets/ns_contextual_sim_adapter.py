@@ -23,7 +23,6 @@ def gen_similar_dataloader(origin_loader, scale_coeffs, batch_size=0):
     sim_dataset.n_scale_coeff = sim_dataset.scale_coeffs.shape[0]
 
     def new_get_item(self, index):
-        print('fuck')
         # returns: {'x', 'y', other features}
         origin_idx = index // self.n_scale_coeff
         k_idx = index % self.n_scale_coeff

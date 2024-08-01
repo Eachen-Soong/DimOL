@@ -183,7 +183,8 @@ class ProductLayer(nn.Module):
         self.range_prods = torch.tensor(np.array(range(self.num_prods)), dtype=int)
 
     def get_prods(self, x):
-        return torch.stack([x[:, 2 *i, ...] * x[:, 2 *i + 1, ...] for i in self.range_prods], dim=1)
+        return torch.mul(x[:, : 2*self.num_prods-1: 2, ...], x[:, 1: 2*self.num_prods: 2, ...])
+        # return torch.stack([x[:, 2 *i, ...] * x[:, 2 *i + 1, ...] for i in self.range_prods], dim=1)
 
     def forward(self, x):
         x = torch.cat((x, self.get_prods(x)), dim=1)
