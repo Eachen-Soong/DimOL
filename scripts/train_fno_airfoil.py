@@ -74,14 +74,14 @@ def get_parser():
     parser.add_argument('--log_path', type=str, default='./runs')
     parser.add_argument('--save_path', type=str, default='./ckpt')
     parser.add_argument('--prefix', type=str, default='', help='prefix of log and save file')
-    parser.add_argument('--time_suffix', type=bool, default=True, help='whether to use program start time as suffix')
-    parser.add_argument('--config_details', type=bool, default=True, help='whether to include config details to the log and save file name')
+    parser.add_argument('--time_suffix', type=int, default=1, help='whether to use program start time as suffix')
+    parser.add_argument('--config_details', type=int, default=1, help='whether to include config details to the log and save file name')
     parser.add_argument('--log_interval', type=int, default=4)
     parser.add_argument('--save_interval', type=int, default=20)
     # # # Trainer Configs # # #
     parser.add_argument('--epochs', type=int, default=501) #
-    parser.add_argument('--verbose', type=bool, default=True)
-    parser.add_argument('--random_seed', type=bool, default=False)
+    parser.add_argument('--verbose', type=int, default=1)
+    parser.add_argument('--random_seed', type=int, default=0)
     parser.add_argument('--seed', type=int, default=0)
 
     return parser

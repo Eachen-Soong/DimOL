@@ -10,21 +10,21 @@ python -m scripts.train_lsm_ns_contextual \
     --train_subsample_rate 4 \
     --test_subsample_rate 4 \
     --time_step 10 \
-    --pos_encoding True \
+    --pos_encoding 1 \
     --lr 1e-3 \
     --weight_decay 1e-4 \
     --scheduler_steps 100 \
     --scheduler_gamma 0.5 \
     --train_loss h1 \
-    --time_suffix True \
-    --config_details True \
+    --time_suffix 1 \
+    --config_details 1 \
     --log_interval 4 \
     --save_interval 20 \
     --epochs 501 \
-    --verbose True \
-    --random_seed False \
+    --verbose 1 \
+    --random_seed 0 \
     --seed 0 \
-    --simaug_train_data False \
-    --simaug_test_data True \
+    --simaug_train_data 0 \
+    --simaug_test_data 1 \
     --channel_mixing prod-layer \
     --num_prod 8 \

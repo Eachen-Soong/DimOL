@@ -6,14 +6,14 @@ data_name="TorusLi"
 n_train=1000
 n_test=200
 raw_in_channels=1
-time_suffix=True
-config_details=True
+time_suffix=1
+config_details=1
 log_interval=1
 
 # Fixed Model Configs: 
 # The folling use default values: n_modes, hidden_channels, lifting_channels, projection_channels
 model_name="FNO"
-randon_seed=False
+randon_seed=0
 seed=0
 
 # Unfixed Training Configs:
@@ -26,7 +26,7 @@ training_losses=("h1" "l2")
 
 # Unfixed Model Configs
 n_layerses=(4)
-pos_encodings=(True False)
+pos_encodings=(1 0)
 factorizations=("" "tucker")
 ranks=(0.42)
 channel_mixings=("" "prod-layer")

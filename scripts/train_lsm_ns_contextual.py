@@ -37,8 +37,8 @@ def get_parser():
     parser.add_argument('--data_path', type=str, default='./data/ns_random_forces_1.h5', help="the path of data file")
     parser.add_argument('--test_data_path', type=str, default='', nargs='+', help="the path of test data file")
     parser.add_argument('--data_name', type=str, default='NS_Contextual', help="the name of dataset")
-    parser.add_argument('--simaug_train_data', type=bool, default=False, help="whether to augment the dataset with similar ones")
-    parser.add_argument('--simaug_test_data', type=bool, default=False, help="whether to augment the test dataset with similar ones")
+    parser.add_argument('--simaug_train_data', type=int, default=0, help="whether to augment the dataset with similar ones")
+    parser.add_argument('--simaug_test_data', type=int, default=0, help="whether to augment the test dataset with similar ones")
     # # # # Model Configs # # #
     parser.add_argument('--in_dim', default=3, type=int, help='input data dimension')
     parser.add_argument('--out_dim', default=1, type=int, help='output data dimension')
@@ -49,7 +49,7 @@ def get_parser():
     parser.add_argument('--T-out', default=10, type=int,
                         help='predict data time points (only for temporal related experiments)')
     
-    parser.add_argument('--pos_encoding', type=bool, default=True) ##
+    parser.add_argument('--pos_encoding', type=int, default=1) ##
 
     parser.add_argument('--h-down', default=1, type=int, help='height downsampe rate of input')
     parser.add_argument('--w-down', default=1, type=int, help='width downsampe rate of input')
@@ -70,14 +70,14 @@ def get_parser():
     parser.add_argument('--log_path', type=str, default='./runs')
     parser.add_argument('--save_path', type=str, default='./ckpt')
     parser.add_argument('--prefix', type=str, default='', help='prefix of log and save file')
-    parser.add_argument('--time_suffix', type=bool, default=True, help='whether to use program start time as suffix')
-    parser.add_argument('--config_details', type=bool, default=True, help='whether to include config details to the log and save file name')
+    parser.add_argument('--time_suffix', type=int, default=1, help='whether to use program start time as suffix')
+    parser.add_argument('--config_details', type=int, default=1, help='whether to include config details to the log and save file name')
     parser.add_argument('--log_interval', type=int, default=4)
     parser.add_argument('--save_interval', type=int, default=20)
     # # # Trainer Configs # # #
     parser.add_argument('--epochs', type=int, default=501) #
-    parser.add_argument('--verbose', type=bool, default=True)
-    parser.add_argument('--random_seed', type=bool, default=False)
+    parser.add_argument('--verbose', type=int, default=1)
+    parser.add_argument('--random_seed', type=int, default=0)
     parser.add_argument('--seed', type=int, default=0)
 
     return parser
