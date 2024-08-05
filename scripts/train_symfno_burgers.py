@@ -1,28 +1,26 @@
-"""
-    Only supports the time series datasets! (model definition assumes it's 2d problem here)
-    (the train numbers and test numbers should not be predefined in the dataset, otherwise merge the dataset)
-    the predicted feature now only support 1 channel
-    logger currently only supports tensorboard 
-    TODO: support more channels
-"""
-import torch
-import numpy as np
-
-from neuralop.models import FNO
-# from neuralop.training import OutputEncoderCallback
-from neuralop.utils import count_params
-from neuralop import LpLoss, H1Loss
-from neuralop.datasets.autoregressive_dataset import load_autoregressive_traintestsplit_v3
-from neuralop.training import MultipleInputCallback, SimpleTensorBoardLoggerCallback, ModelCheckpointCallback
-
 import os
 import sys
+import inspect
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.insert(0, parentdir)
+
+import torch
+from neuralop.models import SymFNO
+import numpy as np
+from neuralop import Trainer
+from neuralop.training import OutputEncoderCallback, SimpleTensorBoardLoggerCallback, ModelCheckpointCallback
+
+from neuralop.utils import count_params
+from neuralop import LpLoss, H1Loss
+from neuralop.datasets import load_burgers_mat
+
 import time
 from pathlib import Path
 import matplotlib.pyplot as plt
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-print(f'Using {device} device')
+
+device = 'cuda'
 
 import argparse
 
@@ -31,36 +29,38 @@ def get_parser():
     parser.add_argument('--model', type=str, default='FNO')
     parser.add_argument('--model_name',  type=str, default='FNO')
     # # # Data Loader Configs # # #
-    parser.add_argument('--n_train', type=int, default=2)
-    parser.add_argument('--n_test', nargs='+', type=int, default=1)
+    parser.add_argument('--n_train', type=int, default=1536)
+    parser.add_argument('--n_test', type=int, default=512)
     parser.add_argument('--batch_size', type=int, default=32) #
-    parser.add_argument('--test_batch_size', type=int, default=128)
-    parser.add_argument('--train_subsample_rate', type=int, default=4)
-    parser.add_argument('--test_subsample_rate', nargs='+',  type=int, default=4)
-    parser.add_argument('--time_step', type=int, default=10)
+    parser.add_argument('--train_subsample_rate', type=int, default=1)
+    parser.add_argument('--test_subsample_rate', type=int, default=1)
+    # parser.add_argument('--time_step', type=int, default=1)
     parser.add_argument('--predict_feature', type=str, default='u')
-    parser.add_argument('--data_path', type=str, default='./data/ns_random_forces_1.h5', help="the path of data file")
-    parser.add_argument('--test_data_path', nargs='+', type=str, default='', help="the path of test data file")
-    parser.add_argument('--data_name', type=str, default='NS_Contextual', help="the name of dataset")
-    parser.add_argument('--simaug_train_data', type=int, default=0, help="whether to augment the dataset with similar ones")
-    parser.add_argument('--simaug_test_data', type=int, default=0, help="whether to augment the test dataset with similar ones")
+    parser.add_argument('--data_path', type=str, default='../../data/zongyi/burgers_data_R10.mat', help="the path of data file")
+    parser.add_argument('--data_name', type=str, default='Burgers', help="the name of dataset")
     # # # Model Configs # # #
     parser.add_argument('--n_modes', type=int, default=21) #
     parser.add_argument('--num_prod', type=int, default=2) #
     parser.add_argument('--n_layers', type=int, default=4) ##
-    parser.add_argument('--raw_in_channels', type=int, default=3, help='TorusLi: 1; ns_contextual: 3')
+    parser.add_argument('--raw_in_channels', type=int, default=1, help='')
     parser.add_argument('--pos_encoding', type=int, default=1) ##
     parser.add_argument('--hidden_channels', type=int, default=32) #
     parser.add_argument('--lifting_channels', type=int, default=256) #
     parser.add_argument('--projection_channels', type=int, default=64) #
-    parser.add_argument('--factorization', type=str, default='tucker') #####
-    parser.add_argument('--channel_mixing', type=str, default='', help='') #####
-    parser.add_argument('--stabilizer', type=str, default='', help='') #####
+    parser.add_argument('--factorization', type=str, default='') #####
+    parser.add_argument('--channel_mixing', type=str, default='complex-mlp', help='') #####
     parser.add_argument('--rank', type=float, default=0.42, help='the compression rate of tensor') #
     parser.add_argument('--load_path', type=str, default='', help='load checkpoint')
+    parser.add_argument('--n_mixer_layers', type=int, default=2, help='')
+    parser.add_argument('--fno_skip_softgating', type=int, default=0, help='')
+    parser.add_argument('--fno_skip_bias', type=int, default=0, help='')
+    parser.add_argument('--skip_retain_ratio', type=float, default=0.25, help='')
+    parser.add_argument('--exp_ratio', type=float, default=0.25, help='')
+    parser.add_argument('--inv_ratio', type=float, default=0.25, help='')
+    #n_mixer_layers=2,fno_skip_softgating=False, fno_skip_bias=True, skip_retain_ratio=0.25, exp_ratio=0.3, inv_ratio=0.3, 
 
     # # # Optimizer Configs # # #
-    parser.add_argument('--lr', type=float, default=1e-3) #Path
+    parser.add_argument('--lr', type=float, default=1e-3) #
     parser.add_argument('--weight_decay', type=float, default=1e-4) #
     parser.add_argument('--scheduler_steps', type=int, default=100) #
     parser.add_argument('--scheduler_gamma', type=float, default=0.5) #
@@ -70,13 +70,13 @@ def get_parser():
     parser.add_argument('--save_path', type=str, default='./ckpt')
     parser.add_argument('--prefix', type=str, default='', help='prefix of log and save file')
     parser.add_argument('--time_suffix', type=int, default=1, help='whether to use program start time as suffix')
-    parser.add_argument('--config_details', type=int, default=2, help='whether to include config details to the log and save file name')
+    parser.add_argument('--config_details', type=int, default=1, help='whether to include config details to the log and save file name')
     parser.add_argument('--log_interval', type=int, default=4)
     parser.add_argument('--save_interval', type=int, default=20)
     # # # Trainer Configs # # #
     parser.add_argument('--epochs', type=int, default=501) #
     parser.add_argument('--verbose', type=int, default=1)
-    parser.add_argument('--random_seed', type=int, default=1, help='whether to use random seed') 
+    parser.add_argument('--random_seed', type=int, default=0)
     parser.add_argument('--seed', type=int, default=0)
 
     return parser
@@ -95,36 +95,33 @@ def run(args):
     n_train = args.n_train
     n_test = args.n_test
     batch_size = args.batch_size
-    test_batch_size = args.test_batch_size
+    test_batch_size = batch_size
     train_subsample_rate = args.train_subsample_rate
     test_subsample_rate = args.test_subsample_rate
-    time_step = args.time_step
+    # time_step = args.time_step
+    # data_path = "/home/yichen/repo/cfd/myFNO/data/zongyi/NavierStokes_V1e-5_N1200_T20.mat"
     data_path = args.data_path
-    train_loader, test_loaders = load_autoregressive_traintestsplit_v3(
-        data_path,
-        n_train, n_test,
-        batch_size, test_batch_size,
-        train_subsample_rate, test_subsample_rate,
-        time_step,
-        test_data_paths=args.test_data_path,
-        predict_feature=args.predict_feature,
-        append_positional_encoding=args.pos_encoding
+    train_loader, test_loader, encoder= load_burgers_mat(
+        data_path=data_path, n_train=n_train, n_test=n_test, batch_size=batch_size, test_batch_size=test_batch_size,
+        train_ssr=train_subsample_rate, test_ssrs=[test_subsample_rate]
     )
-    resolution = train_loader.dataset[0]['x'].shape[0]
-
+    
     # # # Model Definition # # #
     n_modes=args.n_modes
     num_prod=args.num_prod
     in_channels = args.raw_in_channels
     if args.pos_encoding:
         in_channels += 2
-    model = FNO(in_channels=in_channels, n_modes=(n_modes, n_modes), hidden_channels=args.hidden_channels, lifting_channels=args.lifting_channels,
-                projection_channels=args.projection_channels, n_layers=args.n_layers, factorization=args.factorization, channel_mixing=args.channel_mixing, stabilizer=args.stabilizer, rank=args.rank, num_prod=num_prod)
+    model = SymFNO(in_channels=in_channels, n_modes=(n_modes,), hidden_channels=args.hidden_channels, lifting_channels=args.lifting_channels,
+                projection_channels=args.projection_channels, n_layers=args.n_layers, factorization=args.factorization, channel_mixing=args.channel_mixing, rank=args.rank, num_prod=num_prod,
+                n_mixer_layers=args.n_mixer_layers,fno_skip_softgating=args.fno_skip_softgating, fno_skip_bias=args.fno_skip_bias, skip_retain_ratio=args.skip_retain_ratio, exp_ratio=args.exp_ratio, inv_ratio=args.inv_ratio, 
+                )
     
     if args.load_path != '':
         model.load_state_dict(torch.load(args.load_path))
-
+    
     model = model.to(device)
+    encoder = encoder.to(device)
 
     n_params = count_params(model)
     print(f'\nOur model has {n_params} parameters.')
@@ -168,7 +165,7 @@ def run(args):
     config_file_path=''
     if args.config_details:
         # config_name = f'_b{args.batch_size}_mode{args.n_modes}_prod{args.num_prod}_layer{args.n_layers}_hid{args.hidden_channels}_lift{args.lifting_channels}_proj{args.projection_channels}_fact-{args.factorization}_rank{args.rank}_mix-{args.channel_mixing}_pos-enc-{args.pos_encoding}_lr{args.lr}_wd{args.weight_decay}_sche-step{args.scheduler_steps}_gamma{args.scheduler_gamma}_loss{args.train_loss}'
-        config_file_path = f"/timestep_{args.time_step}/layer_{args.n_layers}/fact-{args.factorization}/rank_{args.rank}/mix-{args.channel_mixing}/prod_{args.num_prod}/stabilizer-{args.stabilizer}/pos-enc-{args.pos_encoding}/loss-{args.train_loss}/mode_{args.n_modes}/hid_{args.hidden_channels}/lift_{args.lifting_channels}/proj_{args.projection_channels}/b_{args.batch_size}/lr_{args.lr}/wd_{args.weight_decay}/sche-step_{args.scheduler_steps}/gamma_{args.scheduler_gamma}/simaug_train_data_{args.simaug_train_data}/"
+        config_file_path = f"/layer_{args.n_layers}/fact-{args.factorization}/rank_{args.rank}/mix-{args.channel_mixing}/n_mixer_layers-{args.n_mixer_layers}/prod_{args.num_prod}/pos-enc-{args.pos_encoding}/loss-{args.train_loss}/mode_{args.n_modes}/hid_{args.hidden_channels}/lift_{args.lifting_channels}/proj_{args.projection_channels}/b_{args.batch_size}/lr_{args.lr}/wd_{args.weight_decay}/sche-step_{args.scheduler_steps}/gamma_{args.scheduler_gamma}/"
     time_name = ''
     if args.time_suffix:
         localtime = time.localtime(time.time())
@@ -182,7 +179,7 @@ def run(args):
     save_dir = args.save_path
     if save_dir[-1]!='/': save_dir = save_dir + '/'
     save_dir = save_dir + file_name
-
+    
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
     if not os.path.exists(save_dir):
@@ -192,24 +189,20 @@ def run(args):
     save_dir = Path(save_dir)
 
     # # # Trainer Definition # # #
-    from scripts.ns_contextual_trainer import ns_contextual_trainer
-
-    trainer = ns_contextual_trainer(model=model, n_epochs=args.epochs,
+    trainer = Trainer(model=model, n_epochs=args.epochs,
                     device=device,
-                    simaug_test_data=args.simaug_test_data,
-                    simaug_train_data=args.simaug_train_data,
-                    callbacks=[SimpleTensorBoardLoggerCallback(log_dir=log_dir),
-                               ModelCheckpointCallback(
+                    callbacks=[ OutputEncoderCallback(encoder),
+                                SimpleTensorBoardLoggerCallback(log_dir=log_dir),
+                                ModelCheckpointCallback(
                                 checkpoint_dir=save_dir,
-                                interval=args.save_interval)],
-                    scaling_ks=[1,], scaling_ps=[4,8,16],
+                                interval=args.save_interval)], 
                     wandb_log=False,
                     log_test_interval=args.log_interval,
                     use_distributed=False,
-                    verbose=True)
+                    verbose=verbose)
 
     trainer.train(train_loader=train_loader,
-                test_loaders=test_loaders,
+                test_loaders=test_loader,
                 optimizer=optimizer, 
                 scheduler=scheduler, 
                 regularizer=False, 

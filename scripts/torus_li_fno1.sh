@@ -7,10 +7,10 @@ python -m scripts.train_fno_torus_li \
     --batch_size 32 \
     --train_subsample_rate 1 \
     --test_subsample_rate 1 \
-    --time_step 10 \
+    --time_step 1 \
     --n_modes 21 \
     --num_prod 2 \
-    --n_layers 1 \
+    --n_layers 4 \
     --pos_encoding 1 \
     --hidden_channels 32 \
     --lifting_channels 256 \
@@ -28,8 +28,8 @@ python -m scripts.train_fno_torus_li \
     --verbose 1 \
     --random_seed 0 \
     --seed 1825 \
+    --channel_mixing prod-layer \
     # --stabilizer tanh
-    # --channel_mixing prod-layer \
     # --factorization tucker \
     # --rank 0.42 \
     

@@ -17,7 +17,7 @@ python -m scripts.train_fno_ns_contextual \
     --projection_channels 64 \
     --factorization tucker \
     --rank 0.42 \
-    --channel_mixing prod-layer \
+    --channel_mixing mlp \
     --lr 1e-3 \
     --weight_decay 1e-4 \
     --scheduler_steps 100 \
@@ -25,11 +25,11 @@ python -m scripts.train_fno_ns_contextual \
     --train_loss h1 \
     --time_suffix 1 \
     --config_details 1 \
-    --log_interval 4 \
+    --log_interval 1 \
     --save_interval 20 \
     --epochs 501 \
     --verbose 1 \
     --random_seed 0 \
-    --seed 1825
+    --seed 4507
 
 

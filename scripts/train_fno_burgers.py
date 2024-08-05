@@ -43,7 +43,7 @@ def get_parser():
     parser.add_argument('--lifting_channels', type=int, default=256) #
     parser.add_argument('--projection_channels', type=int, default=64) #
     parser.add_argument('--factorization', type=str, default='tucker') #####
-    parser.add_argument('--channel_mixing', type=str, default='quad-layer', help='') #####
+    parser.add_argument('--channel_mixing', type=str, default='', help='') #####
     parser.add_argument('--rank', type=float, default=0.42, help='the compression rate of tensor') #
     parser.add_argument('--load_path', type=str, default='', help='load checkpoint')
 
@@ -188,7 +188,7 @@ def run(args):
                     verbose=verbose)
 
     trainer.train(train_loader=train_loader,
-                test_loader=test_loader,
+                test_loaders=test_loader,
                 optimizer=optimizer, 
                 scheduler=scheduler, 
                 regularizer=False, 
