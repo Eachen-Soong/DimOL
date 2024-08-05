@@ -7,12 +7,13 @@ python -m scripts.train_fno_burgers \
     --train_subsample_rate 1 \
     --test_subsample_rate 1 \
     --n_modes 21 \
-    --num_prod 2 \
-    --n_layers 4 \
+    --num_prod 1 \
+    --n_layers 2 \
     --pos_encoding 1 \
     --hidden_channels 32 \
     --lifting_channels 256 \
     --projection_channels 64 \
+    --channel_mixing prod-layer \
     --rank 0.42 \
     --lr 1e-3 \
     --weight_decay 1e-4 \

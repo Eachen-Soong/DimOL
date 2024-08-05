@@ -6,9 +6,9 @@ python -m scripts.train_symfno_burgers \
     --batch_size 32 \
     --train_subsample_rate 1 \
     --test_subsample_rate 1 \
-    --n_modes 33 \
+    --n_modes 21 \
     --num_prod 2 \
-    --n_layers 4 \
+    --n_layers 2 \
     --pos_encoding 1 \
     --hidden_channels 32 \
     --lifting_channels 64 \

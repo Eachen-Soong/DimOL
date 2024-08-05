@@ -215,10 +215,10 @@ class ProductGating(nn.Module):
         # TODO: more initialization!
         # gating_coeff.size: [num_prod] (the first dimension for broadcast on batches)
         self.gating_coeff = 0.5 * torch.ones([num_prod])
-        self.clamp_thresh = nn.Parameter(torch.tensor(clamp_thresh))
+        self.clamp_thresh = nn.Parameter(torch.tensor(clamp_thresh), requires_grad=True)
 
     def forward(self, x):
-        prods = torch.stack([x[:, 2 * i, ...] * x[:, 2 * i + 1, ...] for i in self.range_prod], dim=1)
+        prods = torch.mul(x[:, : 2*self.num_prod-1: 2, ...], x[:, 1: 2*self.num_prod: 2, ...])
         prods = torch.clamp(prods, min=-self.clamp_thresh, max=self.clamp_thresh)
         coeff = torch.clamp(self.gating_coeff, min=0, max=1).view(1, -1, *([1] * (x.dim() - 2))).to(x.device)
 

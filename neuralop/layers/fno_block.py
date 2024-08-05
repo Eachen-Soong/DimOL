@@ -320,6 +320,7 @@ class FNOBlocks1(nn.Module):
         channel_mixing="",
         mlp_dropout=0,
         mlp_expansion=0.5,
+        mixing_layers=2,
         num_prod=2,
         non_linearity=F.gelu,
         stabilizer=None,
@@ -366,6 +367,7 @@ class FNOBlocks1(nn.Module):
         self.channel_mixing = channel_mixing
         self.mlp_expansion = mlp_expansion
         self.mlp_dropout = mlp_dropout
+        self.mixing_layers = mixing_layers
         self.num_prod = num_prod
         self.fft_norm = fft_norm
         self.implementation = implementation
@@ -414,6 +416,7 @@ class FNOBlocks1(nn.Module):
                         hidden_channels=round(self.out_channels * mlp_expansion),
                         dropout=mlp_dropout,
                         n_dim=self.n_dim,
+                        n_layers=self.mixing_layers
                     )
                     for _ in range(n_layers)
                 ]

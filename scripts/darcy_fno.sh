@@ -1,6 +1,6 @@
 CUDA_VISIBLE_DEVICES=0 \
 python -m scripts.train_fno_darcy \
-    --data_path ../data/zongyi/piececonst_r421_N1024_smooth1.mat \
+    --data_path ../../data/zongyi/piececonst_r421_N1024_smooth1.mat \
     --data_name DarcyFlow \
     --n_train 960 \
     --n_test 64 \
@@ -28,7 +28,7 @@ python -m scripts.train_fno_darcy \
     --verbose 1 \
     --random_seed 0 \
     --seed 0 \
-    --channel_mixing mlp \
-    --factorization tucker \
+    --channel_mixing prod-gating \
+    # --factorization tucker \
     # --rank 0.42 \
     
