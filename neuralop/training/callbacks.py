@@ -16,6 +16,7 @@ from einops import repeat
 
 from neuralop.training.patching import MultigridPatching2D
 from neuralop.datasets.positional_encoding import get_grid_positional_encoding
+from neuralop.utils import count_params
 
 class Callback(object):
     """
@@ -461,14 +462,26 @@ class SimpleTensorBoardLoggerCallback(Callback):
     expected when passing verbose to a Trainer, using TensorBoard.
     """
 
-    def __init__(self, log_dir='runs', **kwargs):
+    def __init__(self, log_dir='runs', hparams=None, **kwargs):
         super().__init__()
         import sys
         from torch.utils.tensorboard import SummaryWriter
         self.writer = SummaryWriter(log_dir=log_dir)
+        self.log_dir = log_dir
 
     def on_init_end(self, *args, **kwargs):
         self._update_state_dict(**kwargs)
+        model = self.state_dict['model']
+        n_params = count_params(model)
+        try:
+            file_path = self.log_dir + '/log.txt'
+        except TypeError:
+            file_path = self.log_dir.joinpath('log.txt')
+
+        with open(file_path, 'w') as f:
+            f.write(f'Our model has {n_params} parameters.\n')
+            f.write(model.__str__())
+
 
     def on_train_start(self, **kwargs):
         self._update_state_dict(**kwargs)

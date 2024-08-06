@@ -101,7 +101,7 @@ def run(args):
     in_channels = args.raw_in_channels
     if args.pos_encoding:
         in_channels += 2
-    model = FNO(in_channels=in_channels, n_modes=(n_modes,), hidden_channels=args.hidden_channels, lifting_channels=args.lifting_channels,
+    model = FNO(in_channels=in_channels, n_modes=(n_modes, n_modes,), hidden_channels=args.hidden_channels, lifting_channels=args.lifting_channels,
                 projection_channels=args.projection_channels, n_layers=args.n_layers, factorization=args.factorization, channel_mixing=args.channel_mixing, mixing_layers=args.mixing_layers, rank=args.rank, num_prod=num_prod)
     
     if args.load_path != '':
