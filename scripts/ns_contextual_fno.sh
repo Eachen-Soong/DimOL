@@ -10,7 +10,7 @@ python -m scripts.train_fno_ns_contextual \
     --time_step 4 \
     --n_modes 21 \
     --channel_mixing mlp \
-    --mixing_layers 3 \
+    --mixing_layers 4 \
     --num_prod 0 \
     --n_layers 4 \
     --pos_encoding 1 \

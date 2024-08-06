@@ -1,9 +1,9 @@
 CUDA_VISIBLE_DEVICES=0 \
 python -m scripts.train_fno_torus_li \
     --data_path ../../data/zongyi/NavierStokes_V1e-5_N1200_T20.mat \
-    --data_name Toris_Li \
-    --n_train 1000 \
-    --n_test 200 \
+    --data_name Torus_Li_fewshot_200 \
+    --n_train 200 \
+    --n_test 40 \
     --batch_size 32 \
     --train_subsample_rate 1 \
     --test_subsample_rate 1 \
@@ -31,7 +31,6 @@ python -m scripts.train_fno_torus_li \
     --channel_mixing prod-layer \
     # --stabilizer tanh
     # --factorization tucker \
-    # --rank 0.42 \
-    
+    # --rank 0.42 
 
 
