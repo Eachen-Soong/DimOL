@@ -1,11 +1,11 @@
 CUDA_VISIBLE_DEVICES=0 \
 python -m scripts.train_lsm_ns_contextual \
-    --data_path ../data/ns_contextual/ns_random_forces_top100_mu.h5 \
-    --test_data_path ../data/ns_contextual/ns_random_forces_top100_mu.h5 ../data/ns_contextual/ns_random_forces_bottom100_mu.h5\
+    --data_path ../data/ns_contextual/ns_random_forces_top200_mu.h5 \
+    --test_data_path ../data/ns_contextual/ns_random_forces_top200_mu.h5 ../data/ns_contextual/ns_random_forces_bottom100_mu.h5\
     --data_name NS_Contextual_Fewshot \
     --model_name LSM \
-    --n_train 50 \
-    --n_test 50 \
+    --n_train 100 \
+    --n_test 100 \
     --batch_size 64 \
     --train_subsample_rate 4 \
     --test_subsample_rate 4 \
@@ -28,3 +28,4 @@ python -m scripts.train_lsm_ns_contextual \
     --simaug_test_data 1 \
     --channel_mixing prod-layer \
     --num_prod 8 \
+    

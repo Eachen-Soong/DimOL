@@ -235,7 +235,7 @@ class ns_contextual_trainer(Trainer):
         errors : dict
             dict[f'{log_prefix}_{loss_name}] = loss for loss in loss_dict
         """
-        print('using k steps forward!')
+        # print('using k steps forward!')
         k = int(k)
         # log_prefix = log_prefix + str(k)
 

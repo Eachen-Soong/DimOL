@@ -198,7 +198,7 @@ def run(args):
                     verbose=verbose)
 
     trainer.train(train_loader=train_loader,
-                test_loader=test_loader,
+                test_loaders=test_loader,
                 optimizer=optimizer, 
                 scheduler=scheduler, 
                 regularizer=False, 

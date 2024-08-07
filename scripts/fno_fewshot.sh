@@ -1,8 +1,8 @@
 CUDA_VISIBLE_DEVICES=0 \
 python -m scripts.train_fno_ns_contextual \
-    --data_path ../../data/ns_contextual/ns_random_forces_top100_mu.h5 \
-    --test_data_path ../../data/ns_contextual/ns_random_forces_top100_mu.h5 ../../data/ns_contextual/ns_random_forces_bottom100_mu.h5\
-    --data_name NS_Contextual_Fewshot_test \
+    --data_path ../../data/ns_contextual/ns_random_forces_top200_mu.h5 \
+    --test_data_path ../../data/ns_contextual/ns_random_forces_top200_mu.h5 ../../data/ns_contextual/ns_random_forces_bottom100_mu.h5\
+    --data_name NS_Contextual_Fewshot \
     --n_train 100 \
     --n_test 100 \
     --batch_size 64 \
@@ -33,4 +33,4 @@ python -m scripts.train_fno_ns_contextual \
     --seed 0 \
     --simaug_train_data 0 \
     --simaug_test_data 1 \
-    --channel_mixing prod-layer \
+    # --channel_mixing prod-layer \

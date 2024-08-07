@@ -1,17 +1,17 @@
 #!/bin/bash
 
-fixed_string="s"
+# fixed_string="s"
 
-while true; do
-    read -p "请输入字符串: " input_string
+# while true; do
+#     read -p "请输入字符串: " input_string
 
-    if [[ $input_string != *"$fixed_string"* ]]; then
-        echo "输入的字符串不包含固定字符串: $fixed_string"
-        break
-    else
-        echo "输入的字符串包含固定字符串: $fixed_string, 请再次尝试。" # fuck
-    fi
-done
+#     if [[ $input_string != *"$fixed_string"* ]]; then
+#         echo "输入的字符串不包含固定字符串: $fixed_string"
+#         break
+#     else
+#         echo "输入的字符串包含固定字符串: $fixed_string, 请再次尝试。" # fuck
+#     fi
+# done
 
 
 # import types
