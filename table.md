@@ -64,3 +64,14 @@ trained with T=10
 | LSM   (p=2)'s gain| 3.3%    | 11.6%   | 11.1%   | 2.1%    |
 
 Note: for k=4 and k=16 test-sets, we use the model where MSE (ID) is lowest. 
+
+Ablation of baseline T-FNO on mlp_layer
+
+TorusVisForceFew: T=4
+|  | $n_l=2$ | $n_l=3$ | $n_l=4$ | $n_l=5$ | $n_l=6$ |
+|-|-|-|-|-|-|
+| Parameter Count | 2.037 | 2.104 | 1.759 | 1.757 | 1.733 |
+| TorusVisForceFew MSE (1e-2) | 2.037 | 2.097 | 2.142 | 2.145 | 2.185 |
+| TorusLi MSE (1e-2)       | 2.037 | 2.104 | 1.759 | 1.757 | 1.733 |
+
+

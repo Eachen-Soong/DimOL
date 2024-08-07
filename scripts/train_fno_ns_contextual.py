@@ -53,7 +53,7 @@ def get_parser():
     parser.add_argument('--hidden_channels', type=int, default=32) #
     parser.add_argument('--lifting_channels', type=int, default=256) #
     parser.add_argument('--projection_channels', type=int, default=64) #
-    parser.add_argument('--factorization', type=str, default='tucker') #####
+    parser.add_argument('--factorization', type=str, default='') #####
     parser.add_argument('--channel_mixing', type=str, default='', help='') #####
     parser.add_argument('--mixing_layers', type=int, default=2, help='') #####
     parser.add_argument('--stabilizer', type=str, default='', help='') #####

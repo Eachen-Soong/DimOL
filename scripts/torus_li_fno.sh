@@ -28,10 +28,12 @@ python -m scripts.train_fno_torus_li \
     --verbose 1 \
     --random_seed 0 \
     --seed 1825 \
+    --channel_mixing prod-layer \
+    --mixing_layers 3 \
+    --factorization tucker \
+    --rank 0.42 \
     # --stabilizer tanh
-    # --channel_mixing prod-layer \
-    # --factorization tucker \
-    # --rank 0.42 \
+
     
 
 
