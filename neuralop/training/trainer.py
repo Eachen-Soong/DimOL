@@ -174,7 +174,7 @@ class Trainer:
                     else:
                         for k,v in sample.items():
                             if hasattr(v, 'to'):
-                                sample[k] = v.to(self.device)
+                                sample[k] = v.to(self.device).float()
 
                     optimizer.zero_grad(set_to_none=True)
                     if regularizer:
@@ -280,7 +280,7 @@ class Trainer:
             else:
                 for k,v in sample.items():
                     if hasattr(v, 'to'):
-                        sample[k] = v.to(self.device)
+                        sample[k] = v.to(self.device).float()
             
             out = self.model(**sample)
 

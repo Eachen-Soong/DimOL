@@ -14,7 +14,11 @@ T=10: (gain: 5.5%)
 
 | Burgers $\\$ MSE(1e-3) | no channel mixing | p=0 | p=1 | p=2 | p=4 | p=8 | p=16 |
 |-|-|-|-|-|-|-|-|
-| FNO | 2.225 | 2.342 | 1.130 | 1.147 | 1.163 | 1.059 | 1.071 |
+| FNO |  |  |  |  |  |  |  |
+
+| Burgers $\\$ MSE(1e-3) | no channel mixing | p=0 | p=1 | p=2 | p=4 | p=8 | p=16 |
+|-|-|-|-|-|-|-|-|
+| T-FNO | 2.225 | 2.342 | 1.130 | 1.147 | 1.163 | 1.059 | 1.071 |
 
 | DarcyFlow $\\$ MSE(1e-3) | no channel mixing | p=0 | p=1 | p=2 | p=4 | p=8 | p=16 |
 |-|-|-|-|-|-|-|-|
@@ -35,8 +39,6 @@ TorusVisForceFew: T=4
 |-|-|-|-|-|-|-|-|
 | T-FNO       | 2.037 | 2.104 | 1.759 | 1.757 | 1.733 | 1.752 | 1.690 |
 | LSM         | / | 8.925 | 8.553 | 8.605 | 8.675 | 8.557 | 8.692 |
-
-
 
 
 TorusVisForceTopMu: The subset of TorusVisForce, with 200 pieces of data with top viscosity (shuffled), mu range: [8.2e-05, 1e-4]
@@ -67,11 +69,29 @@ Note: for k=4 and k=16 test-sets, we use the model where MSE (ID) is lowest.
 
 Ablation of baseline T-FNO on mlp_layer
 
-TorusVisForceFew: T=4
-|  | $n_l=2$ | $n_l=3$ | $n_l=4$ | $n_l=5$ | $n_l=6$ |
-|-|-|-|-|-|-|
-| Parameter Count | 2.037 | 2.104 | 1.759 | 1.757 | 1.733 |
-| TorusVisForceFew MSE (1e-2) | 2.037 | 2.097 | 2.142 | 2.145 | 2.185 |
-| TorusLi MSE (1e-2)       | 2.037 | 2.104 | 1.759 | 1.757 | 1.733 |
+TorusVisForce: T=4
+
+T-FNO:
+| $L_{MLP}$               | 2   | 3   | 4   | 5   | 6   | ProdLayer (p=2) |
+|-|-|-|-|-|-|-|
+| # Param (Millon)        | 0.6882 | 0.6893 | 0.6904 | 0.6915 | 0.6925 | 0.6882 |
+| DarcyFlow MSE (1e-3)    | 7.500 | 7.951 | 8.630 | 9.373 | 8.165 | 6.919 |
+| Few-shot TorusVisForce MSE (1e-2)| 2.104 | 2.097 | 2.142 | 2.145 | 2.180 | 1.757 |
 
 
+multiple experiments on random seeds
+
+| TorusVisForce $\\$ MSE(1e-2)| 1 | 2 | 3 | 4 | mean | std/mean |
+|-|-|-|-|-|-|-|
+| T-FNO (p=0) | 1.744 | 1.737 | 1.673 | 1.715 | 1.717 | 1.6% |
+| T-FNO (p=2) | 1.634 | 1.638 | 1.621 | 1.627 | 1.630 | 0.4% |
+
+| Burgers $\\$ MSE(1e-3)| 1 | 2 | 3 | 4 | mean | std/mean |
+|-|-|-|-|-|-|-|
+| FNO (p=0) | 2.264 | 2.346 | 2.476 | 2.280 | 2.342 | 3.6% |
+| FNO (p=2) | 1.126 | 1.184 | 1.141 | 1.139 | 1.147 | 1.9% |
+
+<!-- | Burgers $\\$ MSE(1e-3)| 1 | 2 | 3 | 4 | mean | std/mean |
+|-|-|-|-|-|-|-|
+| FNO (p=0) | 1.016 | 1.053 | 1.111 | 1.023 | 1.051 | 3.6% |
+| FNO (p=2) | 0.585 | 0.615 | 0.593 | 0.592 | 0.596 | 1.9% | -->
