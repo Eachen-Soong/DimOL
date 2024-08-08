@@ -38,7 +38,7 @@ def get_parser():
     # parser.add_argument('--test_subsample_rate', nargs='+',  type=int, default=4)
     parser.add_argument('--time_step', type=int, default=1)
     # parser.add_argument('--predict_feature', type=str, default='u')
-    # parser.add_argument('--data_path', type=str, default='./data/ns_random_forces_1.h5', help="the path of data file")
+    parser.add_argument('--data_path', type=str, default='../../data', help="the path of data file")
     # parser.add_argument('--test_data_path', nargs='+', type=str, default='', help="the path of test data file")
     parser.add_argument('--data_name', type=str, default='PB_Gravity', help="the name of dataset")
     # # # Model Configs # # #
@@ -156,7 +156,7 @@ def run(args):
 
     # # # Data Preparation # # #
     range_gravy = [0.0001, 0.001, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0]
-    all_files = [f'../../data/BubbleML/PoolBoiling-Gravity-FC72-2D/gravY-{gravy}.hdf5' for gravy in range_gravy]
+    all_files = [args.data_path + f'/BubbleML/PoolBoiling-Gravity-FC72-2D/gravY-{gravy}.hdf5' for gravy in range_gravy]
 
     train_files = [all_files[i] for i in [1,3,4,6]]
     val_files = [all_files[7]]

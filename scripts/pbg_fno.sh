@@ -1,6 +1,7 @@
 CUDA_VISIBLE_DEVICES=0 \
 python -m scripts.train_fno_pbg \
     --data_name PB_Gravity \
+    --data_path ../../data \
     --n_layers 4 \
     --hidden_channels 32 \
     --lifting_channels 256 \
