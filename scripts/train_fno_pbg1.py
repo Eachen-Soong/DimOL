@@ -9,6 +9,7 @@ from neuralop import Trainer
 from neuralop.utils import count_params
 from neuralop import LpLoss, H1Loss
 from neuralop.training import OutputEncoderCallback, SimpleTensorBoardLoggerCallback, ModelCheckpointCallback
+from neuralop.datasets import load_pb_gravity
 
 import os
 import sys
@@ -30,10 +31,10 @@ def get_parser():
     parser.add_argument('--model', type=str, default='FNO')
     parser.add_argument('--model_name',  type=str, default='FNO')
     # # # Data Loader Configs # # #
-    parser.add_argument('--n_train', type=int, default=2)
-    parser.add_argument('--n_test', nargs='+', type=int, default=1)
+    parser.add_argument('--n_train', type=int, default=160)
+    parser.add_argument('--n_test', nargs='+', type=int, default=40)
     parser.add_argument('--batch_size', type=int, default=4) #
-    parser.add_argument('--test_batch_size', type=int, default=32)
+    parser.add_argument('--test_batch_size', type=int, default=16)
     # parser.add_argument('--train_subsample_rate', type=int, default=4)
     # parser.add_argument('--test_subsample_rate', nargs='+',  type=int, default=4)
     parser.add_argument('--time_step', type=int, default=1)
@@ -79,62 +80,6 @@ def get_parser():
 
     return parser
 
-TEMPERATURE = 'temperature'
-VELX = 'velx'
-VELY = 'vely'
-PRESSURE = 'pressure'
-DFUN = 'dfun'
-X = 'x'
-Y = 'y'
-CONSTS = ['ins_gravy']
-
-
-class HDF5Dataset(Dataset):
-    def __init__(self, filename):
-        self.filename = filename
-        self.data = h5py.File(self.filename, 'r')
-        field_shape = self.data[TEMPERATURE][:].shape
-        self.timesteps = field_shape[0]
-        self.space_dim = field_shape[1:]
-        params = {}
-        for i in range(self.data['real-runtime-params'].shape[0]):
-            raw_key, value = self.data['real-runtime-params'][i]
-            key = raw_key.decode('utf-8').rstrip()
-            params[key]=value
-        self.consts = torch.tensor(np.array([params[name] for name in CONSTS]))
-        self.consts_spanned = repeat(self.consts, ' c -> c x y', x=self.space_dim[0], y=self.space_dim[1])
-    
-    def __len__(self):
-        return self.timesteps - 1
-    def _get_input(self, idx):
-        r"""
-        The input is the temperature, x-velocity, and y-velocity at time == idx
-        """
-        temp = torch.from_numpy(self.data[TEMPERATURE][idx])
-        velx = torch.from_numpy(self.data[VELX][idx])
-        vely = torch.from_numpy(self.data[VELY][idx])
-        pres = torch.from_numpy(self.data[PRESSURE][idx])
-        dfun = torch.from_numpy(self.data[DFUN][idx])
-        x = torch.from_numpy(self.data[X][idx])
-        y = torch.from_numpy(self.data[Y][idx])
-        # returns a stack with shape [5 x Y x X]
-        return torch.cat([torch.stack((temp, velx, vely, pres, dfun, x, y), dim=0), self.consts_spanned], dim=0)
-    
-    def _get_label(self, idx):
-        r"""
-        The output is the temperature at time == idx
-        """
-        return torch.from_numpy(self.data[TEMPERATURE][idx]).unsqueeze(0)
-    
-    def __getitem__(self, idx):
-        r"""
-        As input, get temperature and velocities at time == idx.
-        As the output label, get the temperature at time == idx + 1.
-        """
-        input = self._get_input(idx)
-        label = self._get_label(idx+1)
-        return {'x': input, 'y': label}
-
 def run(args):
     seed = args.seed
     if args.random_seed:
@@ -156,17 +101,10 @@ def run(args):
     # data_path = args.data_path
 
     # # # Data Preparation # # #
-    range_gravy = [0.0001, 0.001, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0]
-    all_files = [args.data_path + f'/BubbleML/PoolBoiling-Gravity-FC72-2D/gravY-{gravy}.hdf5' for gravy in range_gravy]
-
-    train_files = [all_files[i] for i in [1,3,4,6]]
-    val_files = [all_files[7]]
-
-    train_dataset = ConcatDataset(HDF5Dataset(file) for file in train_files)
-    val_dataset = ConcatDataset(HDF5Dataset(file) for file in val_files)
-
-    train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=4, shuffle=False)
+    train_loader, val_loader = load_pb_gravity(
+        args.data_path, n_train=args.n_train, n_test=args.n_test, 
+        batch_train=args.batch_size, batch_test=args.test_batch_size
+        )
 
     print(f'Train batches: {len(train_loader)}')
     print(f'Val batches: {len(val_loader)}')

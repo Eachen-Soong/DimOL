@@ -10,3 +10,4 @@ from .pt_dataset import load_pt_traintestsplit
 from .autoregressive_dataset import load_autoregressive_traintestsplit, load_autoregressive_traintestsplit_v1, load_autoregressive_traintestsplit_v3
 from .ns_contextual import load_ns_contextual_toy, load_ns_contextual_mini
 from .burgers import load_burgers_mat
+from .pb_gravity import load_pb_gravity
