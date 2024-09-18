@@ -1,0 +1,17 @@
+Metadata-Version: 2.1
+Name: neuralop1
+Version: 0.1
+Requires-Dist: wandb
+Requires-Dist: ruamel.yaml
+Requires-Dist: configmypy
+Requires-Dist: tensorly
+Requires-Dist: tensorly-torch
+Requires-Dist: torch-harmonics
+Requires-Dist: matplotlib
+Requires-Dist: opt-einsum
+Requires-Dist: h5py
+Requires-Dist: zarr
+Requires-Dist: einops
+Requires-Dist: torchvision
+Requires-Dist: tensorboard
+Requires-Dist: tqdm
