@@ -1,0 +1,10 @@
+runs
+ckpt
+img
+representitive
+**__pycache__
+test*
+neuralop1.egg-info
+dist
+build
+.vscode
