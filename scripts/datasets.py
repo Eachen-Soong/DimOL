@@ -1,7 +1,11 @@
 from get_parser import BaseDataParser
-from data.neuralop_datasets import load_burgers_mat, load_darcy_mat, load_autoregressive_traintestsplit_v3
+from data.neuralop_datasets import load_burgers_mat, load_darcy_mat, load_autoregressive_traintestsplit, load_autoregressive_traintestsplit_v3
+from neuralop1.datasets.dataloader import ns_contextual_loader
+import torch
+import numpy as np
 import types
 import copy
+from typing import Union
 
 class BurgersParser(BaseDataParser):
     def __init__(self) -> None:
@@ -52,7 +56,7 @@ class TorusLiParser(BaseDataParser):
         return
     
     def get_data(self, args):
-        train_loader, val_loader = load_autoregressive_traintestsplit_v3(
+        train_loader, val_loader = load_autoregressive_traintestsplit(
             data_path=args.data_path, n_train=args.n_train, n_test=args.n_test, batch_size=args.batch_size, test_batch_size = args.batch_size, 
             train_ssr=args.train_subsample_rate, test_ssrs=args.test_subsample_rate, time_step=args.time_step,
             positional_encoding=args.pos_encoding,
@@ -60,6 +64,16 @@ class TorusLiParser(BaseDataParser):
         )
         return train_loader, val_loader
     
+def to_torch_tensor(data: Union[list, np.ndarray, torch.Tensor]) -> torch.Tensor:
+    if isinstance(data, list):
+        return torch.tensor(np.array(data))
+    elif isinstance(data, np.ndarray):
+        return torch.tensor(data)
+    elif isinstance(data, torch.Tensor):
+        return data
+    else:
+        raise TypeError("Input type must be list, np.array or torch.tensor")
+
 def gen_similar_dataloaders_dt_divided_p(origin_loader, scaling_ps, batch_size=0):
 
     def new_get_item(self, index):
@@ -73,19 +87,13 @@ def gen_similar_dataloaders_dt_divided_p(origin_loader, scaling_ps, batch_size=0
         new_item['mu'] = origin_item['mu'] * p
         new_item['f'] = origin_item['f'] * (p * p)
         return new_item
-    
-    # def new_get_len(self):
-    #     return self.n_samples * self.n_ticks
 
     sim_loaders = {}
     n_scale_coeff = to_torch_tensor(scaling_ps).shape[0]
     # shallow copy to share the same raw data
     sim_dataset = copy.copy(origin_loader.dataset)
     sim_dataset.__getitem__ = types.MethodType(new_get_item, sim_dataset)
-    # sim_dataset.__len__ = types.MethodType(new_get_len, sim_dataset)
     sim_dataset.scaling_p = 1.
-    sim_dataset.scaling_k = 1.
-    sim_dataset.is_k_integer = False
     if batch_size==0:
         batch_size=origin_loader.batch_size
     for i in range(n_scale_coeff):
@@ -111,6 +119,7 @@ class TorusVisForceParser(BaseDataParser):
         super().add_parser_args(parser)
         parser.add_argument('--time_step', type=int, default=1, help='subsample rate of time')
         parser.add_argument('--predict_feature', type=str, default='u')
+        parser.add_argument('--simaug_coeff', type=int, nargs='+', default=0)
         return
     
     def get_data(self, args):
@@ -120,7 +129,9 @@ class TorusVisForceParser(BaseDataParser):
             positional_encoding=args.pos_encoding,
             predict_feature=args.predict_feature,
         )
-        if args.simaug is not None:
-            
-        val_loader['']
+        if args.simaug_coeff != 0:
+            sim_loaders = gen_similar_dataloaders_dt_divided_p(train_loader, scaling_ps=args.simaug_coeff, batch_size=train_loader.batch_size)
+            val_loader.update(sim_loaders)
+        else: print("No simaug")
+
         return train_loader, val_loader

@@ -8,7 +8,7 @@ os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 import time
 
 import torch
-from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, Timer
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.utilities.model_summary.model_summary import ModelSummary
 
@@ -99,6 +99,7 @@ def run(raw_args=None):
                 monitor='l2', save_top_k=1
                 ),
             EarlyStopping(monitor='l2', min_delta=1e-6, patience=100),
+            Timer,
         ], max_epochs=args.epochs,
         logger=logger,
         )

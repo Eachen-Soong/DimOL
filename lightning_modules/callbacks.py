@@ -18,11 +18,9 @@ class MemoryMonitoringCallback(L.Callback):
         self.process = psutil.Process()
 
     def log_memory_usage(self, stage):
-        # 获取当前 Python 进程的内存使用情况
         memory_info = self.process.memory_info()
         memory_used = memory_info.rss / (1024 ** 3)  # 转换为 GB
 
-        # 获取 GPU 内存信息（如果有 GPU）
         if torch.cuda.is_available():
             gpu_memory_allocated = torch.cuda.memory_allocated() / (1024 ** 3)  # 转换为 GB
             gpu_memory_reserved = torch.cuda.memory_reserved() / (1024 ** 3)  # 转换为 GB
@@ -51,6 +49,8 @@ class MemoryMonitoringCallback(L.Callback):
 
     def on_test_epoch_end(self, trainer, pl_module):
         self.log_memory_usage('Test End')
+
+
 
 # class LossNomorlizationCallback(L.Callback):
 #     def __init__(self, std:Optional[float]=None) -> None:
