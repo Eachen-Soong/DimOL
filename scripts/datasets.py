@@ -1,12 +1,131 @@
 from .get_parser import BaseDataParser
-from data.datasets import load_burgers_mat, load_darcy_mat, load_autoregressive_traintestsplit_dim, load_autoregressive_traintestsplit_v3, load_autoregressive_multitask_mu_preordered, load_autoregressive_traintestsplit_v1, load_cylinder2d_traintestsplit, load_cylinder2d
-from data.datasets.dataloader import ns_contextual_loader
+from data.datasets import load_burgers_mat, load_darcy_mat, load_autoregressive_traintestsplit_dim, load_autoregressive_traintestsplit_v3, load_autoregressive_multitask_mu_preordered, load_autoregressive_traintestsplit_v1, load_cylinder2d_traintestsplit, load_cylinder2d #, load_autoregressive_traintestsplit_time
+# from data.datasets.dataloader import ns_contextual_loader
+from data.datasets.dimino_dataset import FieldPredLoader
 import torch
 import numpy as np
 import types
 import copy
 from typing import Union
 
+
+from data.datasets import load_pdebench_scalar, load_pdebench_initial_steps
+
+class PDEBenchParser(BaseDataParser):
+    def __init__(self):
+        super().__init__()
+        self.name = 'PDEBench'
+
+    def add_parser_args(self, parser):
+        super().add_parser_args(parser)
+        parser.add_argument('--data_folder'         , type=str, default='', help="the path of data file")
+        parser.add_argument('--task'                , type=str, default='', help="the path of data file")
+        parser.add_argument('--n_train'             , type=int, default=-1)
+        parser.add_argument('--n_test'              , type=int, default=-1)
+        parser.add_argument('--initial_steps'       , type=int, default=0, help='')
+        parser.add_argument('--t_train'             , type=int, default=0, help='')
+        parser.add_argument('--train_subsample_rate', type=int, default=1)
+        parser.add_argument('--test_subsample_rate' , type=int, nargs="+", default=1)
+        parser.add_argument('--time_step'           , type=int, default=1)
+        parser.add_argument('--time_skips'          , type=int, default=1) #choices
+        parser.add_argument('--choices'             , type=int, default=[], nargs='+')
+        return
+
+    def get_data(self, args):
+        if args.initial_steps:
+            train_loader, val_loader = load_pdebench_initial_steps(
+                data_folder=args.data_folder, task=args.task, n_train=args.n_train, n_tests=args.n_test, choices=args.choices, batch_size=args.batch_size, test_batch_size=args.batch_size, 
+                train_subsample_rate=args.train_subsample_rate, test_subsample_rates=args.test_subsample_rate, time_step=args.time_step, time_skips=args.time_skips, initial_steps=args.initial_steps,
+                seperate_consts=True
+            )
+        else:
+            train_loader, val_loader = load_pdebench_scalar(
+            data_folder=args.data_folder, task=args.task, n_train=args.n_train, n_tests=args.n_test, batch_size=args.batch_size, test_batch_size=args.batch_size, 
+            train_subsample_rate=args.train_subsample_rate, test_subsample_rates=args.test_subsample_rate, time_step=args.time_step, time_skips=args.time_skips, 
+            choices=args.choices, test_choices=args.choices, 
+            seperate_consts=True
+            )
+        return train_loader, val_loader
+    
+class PDEBenchDimParser(BaseDataParser):
+    def __init__(self):
+        super().__init__()
+        self.name = 'PDEBench'
+
+    def add_parser_args(self, parser):
+        super().add_parser_args(parser)
+        parser.add_argument('--data_folder', type=str, default='', help="the path of data file")
+        parser.add_argument('--task', type=str, default='', help="the path of data file")
+        parser.add_argument('--n_train', type=int, default=-1)
+        parser.add_argument('--n_test' , type=int, default=-1)
+        parser.add_argument('--initial_steps', type=int, default=0, help='')
+        parser.add_argument('--t_train', type=int, default=0, help='')
+        parser.add_argument('--train_subsample_rate', type=int, default=1)
+        parser.add_argument('--test_subsample_rate', type=int, nargs="+", default=1)
+        parser.add_argument('--time_step', type=int, default=1)
+        parser.add_argument('--time_skips', type=int, default=1) #choices
+        parser.add_argument('--choices', type=int, default=[], nargs='+')
+        return
+
+    def get_data(self, args):
+        if args.initial_steps:
+            train_loader, val_loader = load_pdebench_initial_steps(
+                data_folder=args.data_folder, task=args.task, n_train=args.n_train, n_tests=args.n_test, choices=args.choices, batch_size=args.batch_size, test_batch_size=args.batch_size, 
+                train_subsample_rate=args.train_subsample_rate, test_subsample_rates=args.test_subsample_rate, time_step=args.time_step, time_skips=args.time_skips, initial_steps=args.initial_steps,
+                seperate_consts=True
+            )
+        else:
+            train_loader, val_loader = load_pdebench_scalar(
+            data_folder=args.data_folder, task=args.task, n_train=args.n_train, n_tests=args.n_test, choices=args.choices, batch_size=args.batch_size, test_batch_size=args.batch_size, 
+            train_subsample_rate=args.train_subsample_rate, test_subsample_rates=args.test_subsample_rate, time_step=args.time_step, time_skips=args.time_skips, 
+            seperate_consts=True
+            )
+        return train_loader, val_loader
+    
+    def get_dim_aligner(self, args):
+        """
+        The dataset consists of u(vorticity), mu(viscosity), f(external force).
+        By didmensional analysis, here we consider 3 dimensionless number:
+        1; Reynolds = rho v d / mu ~~ v / mu; Froude = v / sqrt(f L) ~~ v / sqrt(f); Strauhal = 1 / (w0 * t0)
+        """
+        n_dim = args.n_dim
+        normalization_dims = list(range(2, 2+n_dim))
+
+        if args.task == 'advection':
+            def get_normalizer(x, consts, **kwargs):
+                # mu = torch.mean(x, dim=normalization_dims)
+                # mean = torch.sqrt(torch.mean(torch.square(x), dim=normalization_dims))
+                # std = torch.sqrt(mean**2 - mu**2)
+                # std = torch.std(x, dim=normalization_dims)
+                # beta_std = std[:, 0:] * consts[:, 1:]
+
+                ones = torch.ones(x.shape[:2], device=x.device)
+                return torch.cat([ones], dim=1), torch.cat([consts], dim=1)
+                # return torch.cat([ones, ones], dim=1), torch.cat([ones, consts], dim=1)
+
+            return get_normalizer
+        elif args.task == 'burgers':
+            def get_normalizer(x, consts, **kwargs):
+                # import pdb; pdb.set_trace()
+                # mu = torch.mean(x, dim=normalization_dims)
+                # mean = torch.sqrt(torch.mean(torch.square(x), dim=normalization_dims))
+                # std = torch.sqrt(mean**2 - mu**2)
+                # std = torch.std(x, dim=normalization_dims)
+                
+                ones = torch.ones(x.shape[:2], device=x.device)
+                return torch.cat([ones], dim=1), torch.cat([consts], dim=1)
+            return get_normalizer
+        elif args.task == 'diff-react-1d' or args.task == 'diff-react-2d':
+            def get_normalizer(x, consts, **kwargs):
+                # mu = torch.mean(x, dim=normalization_dims)
+                # mean = torch.sqrt(torch.mean(torch.square(x), dim=normalization_dims))
+                # std = torch.sqrt(mean**2 - mu**2)
+                # std = torch.std(x, dim=normalization_dims)
+                return torch.ones([x.shape[0], 4], device=x.device), torch.cat([consts, consts[:, 0:1]/consts[:, 1:2], consts[:, 1:2]/consts[:, 0:1]], dim=1)
+            return get_normalizer
+        else:
+            raise NotImplementedError()
+    
 
 class BurgersParser(BaseDataParser):
     def __init__(self) -> None:
@@ -91,40 +210,121 @@ def to_torch_tensor(data: Union[list, np.ndarray, torch.Tensor]) -> torch.Tensor
 
 def gen_similar_dataloaders_dt_divided_p(origin_loader, scaling_ps, batch_size=0):
 
-    def new_get_item(self, index):
-        # returns: {'x', 'y', other features}
-        p = self.scaling_p
-        p_int = int(p)
-        origin_item =  self.get_item(index, p_int)
-        new_item = {}
-        new_item['x'] = origin_item['x'] * p
-        new_item['x'][:, 1, ...] = origin_item['x'][:, 1, ...] * p # forcing
-        new_item['y'] = origin_item['y'] * p
-        new_item['consts'] = origin_item['consts'] * p
-        return new_item
+    # def new_get_item(self, index):
+    #     # returns: {'x', 'y', other features}
+    #     # return
+    #     import pdb; pdb.set_trace()
+    #     p = self.scaling_p
+    #     p_int = int(p)
+    #     origin_item =  self.get_item(index, p_int)
+    #     new_item = {}
+    #     new_item['x'] = origin_item['x'] * p
+    #     new_item['x'][:, 1, ...] = origin_item['x'][:, 1, ...] * p # forcing
+    #     new_item['y'] = origin_item['y'] * p
+    #     new_item['consts'] = origin_item['consts'] * p
+    #     return new_item
 
     sim_loaders = {}
     n_scale_coeff = to_torch_tensor(scaling_ps).shape[0]
     # shallow copy to share the same raw data
     sim_dataset = copy.copy(origin_loader.dataset)
-    sim_dataset.__getitem__ = types.MethodType(new_get_item, sim_dataset)
-    sim_dataset.scaling_p = 1.
+    # sim_dataset.get_item = types.MethodType(new_get_item, sim_dataset)
+    # sim_dataset.scaling_p = 1.
     if batch_size==0:
         batch_size=origin_loader.batch_size
     for i in range(n_scale_coeff):
         new_dataset = copy.copy(sim_dataset)
-        new_dataset.scaling_p = scaling_ps[i]
-        sim_dataset.scaling_k = 1 / new_dataset.scaling_p
-        total_time_number = new_dataset.time_step + new_dataset.n_ticks
-        new_dataset.time_step = new_dataset.time_step * new_dataset.scaling_p
-        new_dataset.n_ticks = total_time_number - new_dataset.time_step
-        new_loader = ns_contextual_loader(new_dataset, batch_size=batch_size, shuffle=False, num_workers=0,
-                                          append_positional_encoding=True
-                                          )
+        new_dataset.change_scaling_p(scaling_ps[i])
+        # new_dataset.scaling_p = scaling_ps[i]
+        # sim_dataset.scaling_k = 1 / new_dataset.scaling_p
+        # total_time_number = new_dataset.time_step + new_dataset.n_ticks
+        # new_dataset.time_step = new_dataset.time_step * new_dataset.scaling_p
+        # new_dataset.n_ticks = total_time_number - new_dataset.time_step
+        new_loader = FieldPredLoader(new_dataset, batch_size=batch_size, shuffle=False, seperate_consts=True)
         sim_loaders[f"dt/=p_{scaling_ps[i]}"] = new_loader
 
     return sim_loaders
 
+# class TorusVisForceDimTimeParser(BaseDataParser):
+#     def __init__(self) -> None:
+#         super().__init__()
+#         self.name = 'TorusVisForceDimTime'
+#         self.var_field_pred_names = []
+#         self.var_field_nonpred_names = []
+#         self.const_field_names = []
+#         self.constants_names = []
+
+#     def add_parser_args(self, parser):
+#         super().add_parser_args(parser)
+#         parser.add_argument('--data_path', type=str, default='', help="the path of data file")
+#         parser.add_argument('--n_train', type=int, default=-1)
+#         parser.add_argument('--n_test', type=int, default=-1)
+#         parser.add_argument('--train_subsample_rate', type=int, default=1)
+#         parser.add_argument('--test_subsample_rate', type=int, nargs="+", default=1)
+#         parser.add_argument('--time_steps', type=int, nargs='+', default=[1, 2, 4, 8], help='subsample rate of time')
+#         parser.add_argument('--time_skips', type=int, default=1, help='subsample rate of time')
+#         parser.add_argument('--predict_feature', type=str, nargs='+', default=['u'])
+#         parser.add_argument('--simaug_coeff', type=int, nargs='+', default=0)
+#         return
+    
+#     def get_data(self, args):
+#         # seperate_consts = args.norm == "dim_norm"
+#         seperate_consts = True
+#         train_loader, val_loader = load_autoregressive_traintestsplit_time(
+#             data_path=args.data_path, n_train=args.n_train, n_tests=args.n_test, batch_size=args.batch_size, test_batch_size = args.batch_size, 
+#             train_subsample_rate=args.train_subsample_rate, test_subsample_rates=args.test_subsample_rate, time_steps=args.time_steps, time_skips=args.time_skips,
+#             predict_features=args.predict_feature, seperate_consts=seperate_consts
+#         )
+        
+#         if args.simaug_coeff != 0:
+#             sim_loaders = gen_similar_dataloaders_dt_divided_p(train_loader, scaling_ps=args.simaug_coeff, batch_size=train_loader.batch_size)
+#             val_loader.update(sim_loaders)
+#         else: print("No simaug")
+
+#         return train_loader, val_loader
+
+#     def get_dim_aligner(self, args):
+#         """
+#         The dataset consists of u(vorticity), mu(viscosity), f(external force).
+#         By didmensional analysis, here we consider 3 dimensionless number:
+#         1; Reynolds = rho v d / mu ~~ v / mu; Froude = v / sqrt(f L) ~~ v / sqrt(f); Strauhal = 1 / (w0 * t0)
+#         """
+#         n_dim = args.n_dim
+#         normalization_dims = list(range(2, 2+n_dim))
+
+#         def get_normalizer(x, consts, **kwargs):
+#             mu = torch.mean(x, dim=normalization_dims)
+#             mean = torch.sqrt(torch.mean(torch.square(x), dim=normalization_dims))
+#             std = torch.sqrt(mean**2 - mu**2)
+#             St_inv_std = 1 / std[:, 0:1]
+#             Re_St_inv_std = consts[:, 0:1] / std[:, 0:1]**2
+#             Fr_sq_St_inv_std = std[:, 1:] / std[:, 0:1]**3
+
+#             ones = torch.ones_like(Re_St_inv_std)
+#             return torch.cat([ones, ones, ones], dim=1), torch.cat([St_inv_std, Re_St_inv_std, Fr_sq_St_inv_std], dim=1)
+#             # mu = torch.mean(x, dim=normalization_dims)
+#             # mean = torch.sqrt(torch.mean(torch.square(x), dim=normalization_dims))
+#             # std = torch.sqrt(mean**2 - mu**2)
+#             # St_inv_std = std[:, 0:1] * consts[:, 1:]
+#             # Re_St_inv_std = consts[:, 0:1] / (std[:, 0:1]**2 * consts[:, 1:])
+#             # Fr_sq_St_inv_std = std[:, 1:] / (std[:, 0:1]**3 * consts[:, 1:])
+
+#             # ones = torch.ones_like(Re_St_inv_std)
+#             # return torch.cat([ones, ones, ones, ones], dim=1), torch.cat([ones, St_inv_std, Re_St_inv_std, Fr_sq_St_inv_std], dim=1)
+#         return get_normalizer
+    
+#     def get_scale_shifting(self, args):
+#         def scale_shifting(x, kwargs):
+#             t = kwargs['consts'][:, -1:]
+#             # shift u, f, mu
+#             u_f_scalar = torch.concat([t, t**2], dim=1)
+#             x = torch.einsum('bcxy, bc -> bcxy', x, u_f_scalar)
+#             kwargs['consts'][:, :0] *= t
+#             kwargs['consts'][:, -1:] /= t
+#             # Re_mu = mu[:, 0:1] / consts[:, 0:]
+#             # Fr_mu = mu[:, 0:1] / mean[:, 1:]
+#             return x, kwargs
+#         return scale_shifting
 
 class TorusVisForceDimParser(BaseDataParser):
     def __init__(self) -> None:
@@ -149,17 +349,18 @@ class TorusVisForceDimParser(BaseDataParser):
         return
     
     def get_data(self, args):
-        seperate_consts = args.norm == "dim_norm"
+        seperate_consts = True
         train_loader, val_loader = load_autoregressive_traintestsplit_dim(
             data_path=args.data_path, n_train=args.n_train, n_tests=args.n_test, batch_size=args.batch_size, test_batch_size = args.batch_size, 
             train_subsample_rate=args.train_subsample_rate, test_subsample_rates=args.test_subsample_rate, time_step=args.time_step, time_skips=args.time_skips,
             predict_features=args.predict_feature, seperate_consts=seperate_consts
         )
         
-        # if args.simaug_coeff != 0:
-        #     sim_loaders = gen_similar_dataloaders_dt_divided_p(train_loader, scaling_ps=args.simaug_coeff, batch_size=train_loader.batch_size)
-        #     val_loader.update(sim_loaders)
-        # else: print("No simaug")
+        if args.simaug_coeff != 0:
+            origin_loader_name = list(val_loader.keys())[0]
+            sim_loaders = gen_similar_dataloaders_dt_divided_p(val_loader[origin_loader_name], scaling_ps=args.simaug_coeff, batch_size=val_loader[origin_loader_name].batch_size)
+            val_loader.update(sim_loaders)
+        else: print("No simaug")
 
         return train_loader, val_loader
 
@@ -167,33 +368,42 @@ class TorusVisForceDimParser(BaseDataParser):
         """
         The dataset consists of u(vorticity), mu(viscosity), f(external force).
         By didmensional analysis, here we consider 3 dimensionless number:
-        1; Reynolds = rho v d / mu ~~ v / mu; Froude = v / sqrt(f L) ~~ v / sqrt(f)
+        1. Reynolds = rho v d / mu ~~ v / mu; 
+        2. Froude = v / sqrt(f L) ~~ v / sqrt(f)
+        3. Strauhal = 1 / (w0 * t0)
         """
         n_dim = args.n_dim
         normalization_dims = list(range(2, 2+n_dim))
-        # def get_normalizer(x, consts, **kwargs):
-        #     mu = torch.mean(x, dim=normalization_dims)
-        #     mean = torch.sqrt(torch.mean(torch.square(x), dim=normalization_dims))
-        #     std = torch.sqrt(mean**2 - mu**2)
-        #     Re_std = std[:, 0:1] / consts[:, 0:]
-        #     Fr_std = std[:, 0:1] / mean[:, 1:]
-        #     ones = torch.ones_like(Re_std)
-        #     Re_mu = mu[:, 0:1] / consts[:, 0:]
-        #     Fr_mu = mu[:, 0:1] / mean[:, 1:]
-        #     return mu, std, torch.cat([ones, Re_mu, Fr_mu], dim=1), torch.cat([ones, Re_std, Fr_std], dim=1)
+
         def get_normalizer(x, consts, **kwargs):
             mu = torch.mean(x, dim=normalization_dims)
             mean = torch.sqrt(torch.mean(torch.square(x), dim=normalization_dims))
             std = torch.sqrt(mean**2 - mu**2)
-            St_inv_std = 1 / std[:, 0:1]
-            Re_St_inv_std = consts[:, 0:] / std[:, 0:1]**2
+            # St_std = 1 / (torch.einsum('bc, b -> bc', std[:, 0:1], kwargs['t']))
+            St_std = 1 / std[:, 0:1]
+            Re_St_inv_std = torch.einsum('bc, b -> bc', consts[:, 0:], 1/kwargs['t']) / std[:, 0:1]**2
+            # Fr_sq_St_inv_std = (torch.einsum('bc, b -> bc', std[:, 1:], 1/kwargs['t'])) / std[:, 0:1]**3
             Fr_sq_St_inv_std = std[:, 1:] / std[:, 0:1]**3
-
             ones = torch.ones_like(Re_St_inv_std)
             # Re_mu = mu[:, 0:1] / consts[:, 0:]
             # Fr_mu = mu[:, 0:1] / mean[:, 1:]
-            return mu, std, torch.cat([ones, ones, ones, ones], dim=1), torch.cat([ones, St_inv_std, Re_St_inv_std, Fr_sq_St_inv_std], dim=1)
+            # print([St_std[0], Re_St_inv_std[0], Fr_sq_St_inv_std])
+            return torch.cat([ones, ones, ones], dim=1), torch.cat([St_std, Re_St_inv_std, Fr_sq_St_inv_std], dim=1)
+
+        # def get_normalizer(x, consts, **kwargs):
+        #     mu = torch.mean(x, dim=normalization_dims)
+        #     mean = torch.sqrt(torch.mean(torch.square(x), dim=normalization_dims))
+        #     std = torch.sqrt(mean**2 - mu**2)
+        #     St_inv_std = 1 / std[:, 0:1]
+        #     Re_St_inv_std = consts[:, 0:] / std[:, 0:1]**2
+        #     Fr_sq_St_inv_std = std[:, 1:] / std[:, 0:1]**3
+
+        #     ones = torch.ones_like(Re_St_inv_std)
+        #     # Re_mu = mu[:, 0:1] / consts[:, 0:]
+        #     # Fr_mu = mu[:, 0:1] / mean[:, 1:]
+        #     return torch.cat([ones, ones, ones], dim=1), torch.cat([St_inv_std, Re_St_inv_std, Fr_sq_St_inv_std], dim=1)
         return get_normalizer
+
 
 class TorusVisForceParser(BaseDataParser):
     def __init__(self) -> None:
@@ -225,7 +435,7 @@ class TorusVisForceParser(BaseDataParser):
         else: print("No simaug")
 
         return train_loader, val_loader
-
+        
 
 class MultiTaskTorusVisForceParser(BaseDataParser):
     def __init__(self) -> None:

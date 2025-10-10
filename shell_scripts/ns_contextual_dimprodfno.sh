@@ -1,4 +1,4 @@
-export CUDA_VISIBLE_DEVICES=2
+export CUDA_VISIBLE_DEVICES=6
 
 python -m scripts.train_dim TorusVisForceDim FNO \
     --data_path /data/ycsong/data/ns_contextual/ns_random_forces_v0.h5 \
@@ -14,7 +14,8 @@ python -m scripts.train_dim TorusVisForceDim FNO \
     --time_step 1 \
     --time_skips 10 \
     --n_modes 21 \
-    --channel_mixing mlp \
+    --channel_mixing prod_layer \
+    --num_prod 2 \
     --mixing_layers 4 \
     --n_layers 4 \
     --append_const 1 \
@@ -24,14 +25,15 @@ python -m scripts.train_dim TorusVisForceDim FNO \
     --projection_channels 64 \
     --factorization tucker \
     --rank 0.42 \
+    --norm dim_norm \
     --pre_norm 0 \
-    --norm instance_norm \
     --preactivation 1 \
     --prediction_dims 0 \
     --num_consts 3 \
+    --pos_aug_consts 0 \
     --lr 1e-3 \
     --weight_decay 1e-4 \
-    --scheduler_steps 100 \
+    --scheduler_steps 80 \
     --scheduler_gamma 0.5 \
     --train_loss h1 \
     --epochs 501 \

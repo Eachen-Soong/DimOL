@@ -57,6 +57,7 @@ def add_train_args(parser:argparse.ArgumentParser):
 
 def add_eval_args(parser:argparse.ArgumentParser):
     parser.add_argument('--batch_size', type=int, default=32) #
+    parser.add_argument('--apply_rollout', type=int, default=0) #
     # # # Model Configs # # #
     parser.add_argument('--load_path', type=str, default='', help='load checkpoint')
     # # # Optimizer Configs # # #
@@ -64,7 +65,7 @@ def add_eval_args(parser:argparse.ArgumentParser):
     parser.add_argument('--loss_reduction', type=str, default='sum', help='sum or mean') #
 
     # # # Log and Save Configs # # #
-    parser.add_argument('--save_dir', type=str, default='')
+    parser.add_argument('--save_dir', type=str, default='./runs')
     parser.add_argument('--log_input', type=int, default=0)
     parser.add_argument('--verbose', type=int, default=1)
     parser.add_argument('--visualize_example', type=int, default=0, help='Whether to visualize the output')

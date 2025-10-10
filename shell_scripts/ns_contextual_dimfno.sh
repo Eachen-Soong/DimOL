@@ -4,7 +4,7 @@ python -m scripts.train_dim TorusVisForceDim FNO \
     --data_path /data/ycsong/data/ns_contextual/ns_random_forces_v0.h5 \
     --n_train 1000 \
     --n_test 200 \
-    --raw_in_channels 3 \
+    --raw_in_channels 2 \
     --raw_in_consts 1 \
     --n_dim 2 \
     --batch_size 32 \
@@ -17,6 +17,7 @@ python -m scripts.train_dim TorusVisForceDim FNO \
     --channel_mixing mlp \
     --mixing_layers 4 \
     --n_layers 4 \
+    --append_const 0 \
     --pos_encoding 1 \
     --hidden_channels 32 \
     --lifting_channels 256 \
@@ -24,9 +25,11 @@ python -m scripts.train_dim TorusVisForceDim FNO \
     --factorization tucker \
     --rank 0.42 \
     --norm dim_norm \
+    --pre_norm 1 \
     --preactivation 1 \
     --prediction_dims 0 \
-    --num_consts 4 \
+    --num_consts 3 \
+    --pos_aug_consts 1 \
     --lr 1e-3 \
     --weight_decay 1e-4 \
     --scheduler_steps 80 \

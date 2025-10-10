@@ -31,10 +31,27 @@ from utils.losses import LpLoss, H1Loss
 
 from scripts.get_parser import Fetcher
 from scripts.models import FNOParser, LSMParser, CNOParser, FNO_OriginalParser
-from scripts.datasets import BurgersParser, DarcyParser, TorusLiParser, TorusVisForceParser, PDEBenchParser
+from scripts.datasets import TorusVisForceDimParser
 
-ModelParsers = [FNOParser, LSMParser, CNOParser, FNO_OriginalParser]
-DataParsers = [BurgersParser, DarcyParser, TorusLiParser, TorusVisForceParser, PDEBenchParser]
+ModelParsers = [FNOParser]
+DataParsers = [TorusVisForceDimParser]
+
+from lightning.pytorch.callbacks import Callback
+
+class SetDimNormCoeff(Callback):
+    def on_train_start(self, trainer, pl_module):
+        num_consts = trainer.model.model.num_consts
+        total_mu, total_std = torch.zeros(num_consts), torch.zeros(num_consts)
+        cnt=0
+        for batch in trainer.train_dataloader:
+            # for  in dataloader:
+                mu, std, aligned_mu, aligned_std = trainer.model.model.dim_aligner(**batch)
+                total_mu += torch.mean(aligned_mu, dim=0); total_std += torch.mean(aligned_std, dim=0); cnt+=1
+        mean_mu = total_mu / cnt; mean_std = total_std / cnt
+        trainer.model.model.set_dimnorm_coeffs(1/mean_std, torch.zeros_like(mean_std))
+        print(mean_mu, mean_std)
+        return super().on_train_start(trainer, pl_module)
+
 
 def run(raw_args=None):
     fetcher = Fetcher(DataParsers=DataParsers, ModelParsers=ModelParsers)
@@ -65,9 +82,10 @@ def run(raw_args=None):
         hparams = args
     # print(hparams)
     model = fetcher.get_model(hparams)
+    if args.norm == 'dim_norm':
+        model.set_dim_aligner(fetcher.data_fetcher[args.data]().get_dim_aligner(args))
 
     del fetcher
-
     
     # 2. Optimizer Definition
     optimizer = torch.optim.Adam(model.parameters(), 
@@ -119,15 +137,19 @@ def run(raw_args=None):
         file.write(ModelSummary(module).__str__())
 
     # # # Training # # #
-    trainer = L.Trainer(
-        callbacks=[
+    callbacks=[
             ModelCheckpoint(
                 dirpath=log_path, 
                 monitor='l2', save_top_k=1
                 ),
             EarlyStopping(monitor='l2', patience=100),
             Timer(),
-        ], 
+        ]
+    if args.norm == 'dim_norm':
+        callbacks.insert(0, SetDimNormCoeff())
+
+    trainer = L.Trainer(
+        callbacks=callbacks,
         max_epochs=args.epochs,
         logger=logger,
         )

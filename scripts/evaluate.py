@@ -31,10 +31,10 @@ from utils.losses import LpLoss, H1Loss
 
 from scripts.get_parser import Fetcher
 from scripts.models import FNOParser, LSMParser, CNOParser, FNO_OriginalParser
-from scripts.datasets import TorusVisForceDimParser, PDEBenchDimParser
+from scripts.datasets import TorusVisForceDimParser#, TorusVisForceDimTimeParser, PDEBenchDimParser
 
 ModelParsers = [FNOParser]
-DataParsers = [TorusVisForceDimParser, PDEBenchDimParser
+DataParsers = [TorusVisForceDimParser#, TorusVisForceDimTimeParser, PDEBenchDimParser
                ]
 
 from lightning.pytorch.callbacks import Callback
@@ -58,16 +58,24 @@ class SetDimNormCoeff(Callback):
         print(mean_mu, mean_std)
         return super().on_train_start(trainer, pl_module)
 
+def find_files_by_suffix(directory, suffix):
+    result = []
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if file.endswith(suffix):
+                result.append(os.path.join(root, file))
+    return result
+
 def run(raw_args=None):
-    fetcher = Fetcher(DataParsers=DataParsers, ModelParsers=ModelParsers)
+    fetcher = Fetcher(DataParsers=DataParsers, ModelParsers=ModelParsers, mode='test')
 
     args = fetcher.parse_args(raw_args)
     verbose = args.verbose
     # # # Seed # # #
-    if args.random_seed:
-        seed_everything()
-    else:
-        seed_everything(args.seed)
+    # if args.random_seed:
+    #     seed_everything()
+    # else:
+    #     seed_everything(args.seed)
     
     # # # Data Preparation # # #
     train_loader, val_loader = fetcher.get_data(args)
@@ -87,24 +95,33 @@ def run(raw_args=None):
         hparams = args
     # print(hparams)
     model = fetcher.get_model(hparams)
-    use_dim = (args.norm == 'dim_norm' or args.norm == 'dim_norm1' or args.append_dimless)
+    use_dim = (hparams.norm == 'dim_norm' or hparams.norm == 'dim_norm1' or hparams.append_dimless)
 
     if use_dim:
-        model.set_dim_aligner(fetcher.data_fetcher[args.data]().get_dim_aligner(args))
+        model.set_dim_aligner(fetcher.data_fetcher[args.data]().get_dim_aligner(hparams))
+    
+    # if args.scale_shifting:
+    #     model.set_scale_shifting(fetcher.data_fetcher[args.data]().get_scale_shifting(args))
+
+        print(hparams)
+
+    ckpt_list = find_files_by_suffix(args.load_path, '.ckpt')
+    assert len(ckpt_list) == 1, f"Number of files ended with .ckpt should be 1, instead of {len(ckpt_list)}."
+    
+    ckpt = torch.load(ckpt_list[0])
+    prefix = "model."
+    state_dict = {k[len(prefix):]: v for k, v in ckpt["state_dict"].items() if k.startswith(prefix)}
+
+    model.load_state_dict(state_dict)
+
 
     del fetcher
     
-    # 2. Optimizer Definition
-    optimizer = torch.optim.Adam(model.parameters(), 
-                                    lr=args.lr, 
-                                    weight_decay=args.weight_decay)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.scheduler_steps, gamma=args.scheduler_gamma)
-
     # 3. Loss Definition
     loss_dict = {'h1': H1Loss(d=2, reductions=args.loss_reduction), 'l2': LpLoss(d=2, p=2, reductions=args.loss_reduction) , 'l1': LpLoss(d=2, p=1, reductions=args.loss_reduction)}
 
-    try: train_loss = loss_dict[args.train_loss]
-    except: print(f"Unsupported training loss! {args.train_loss}")
+    # try: train_loss = loss_dict[args.train_loss]
+    # except: print(f"Unsupported training loss! {args.train_loss}")
     try:
         eval_loss_names = args.eval_loss
         if type(eval_loss_names) == type(''):
@@ -114,53 +131,41 @@ def run(raw_args=None):
 
     if verbose:
         print('\n### MODEL ###\n', model)
-        print('\n### OPTIMIZER ###\n', optimizer)
-        print('\n### SCHEDULER ###\n', scheduler)
         print('\n### LOSSES ###')
-        print(f'\n * Train: {train_loss}')
         print(f'\n * Evaluation: {eval_losses}')
         sys.stdout.flush()
 
     use_sum_reduction = (args.loss_reduction == 'sum')
-    module = MultiMetricModule(model=model, optimizer=optimizer, scheduler=scheduler, train_loss=train_loss, metric_dict=loss_dict, average_over_batch=use_sum_reduction)
+    module = MultiMetricModule(model=model, optimizer=None, scheduler=None, train_loss=None, metric_dict=loss_dict, average_over_batch=use_sum_reduction, apply_rollout=args.apply_rollout)
 
     # # # Logs # # #
-    save_dir = args.save_dir + '/' + args.data + '/' + args.model + '/'
+    save_dir = args.save_dir + '/' + args.data + '/' + args.model + '/evaluation/'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    if args.version_of_time:
-        localtime = time.localtime(time.time())
-        time_name = f"{localtime.tm_mon}-{localtime.tm_mday}-{localtime.tm_hour}-{localtime.tm_min}"
-        name = 'exp_'+time_name
-    else:
-        name = None
+    localtime = time.localtime(time.time())
+    time_name = f"{localtime.tm_mon}-{localtime.tm_mday}-{localtime.tm_hour}-{localtime.tm_min}"
+    name = time_name
+
 
     logger = TensorBoardLogger(save_dir=save_dir, name=name)
-    logger.log_hyperparams(args)
-    log_path = logger.log_dir
+    # logger.log_hyperparams(args)
+    # log_path = logger.log_dir
 
-    with open(log_path + '/model_summary.txt', 'w+') as file:
-        file.write(ModelSummary(module).__str__())
+    # with open(log_path + '/model_summary.txt', 'w+') as file:
+    #     file.write(ModelSummary(module).__str__())
 
     # # # Training # # #
     callbacks=[
-            ModelCheckpoint(
-                dirpath=log_path, 
-                monitor='l2', save_top_k=1
-                ),
-            EarlyStopping(monitor='l2', patience=100),
-            Timer(),
         ]
     if use_dim:
         callbacks.insert(0, SetDimNormCoeff())
 
     trainer = L.Trainer(
         callbacks=callbacks,
-        max_epochs=args.epochs,
         logger=logger,
         )
-    trainer.fit(model=module, train_dataloaders=train_loader, val_dataloaders=val_loader)
+    trainer.test(model=module, dataloaders=val_loader)
 
 if __name__ == '__main__':
     run()

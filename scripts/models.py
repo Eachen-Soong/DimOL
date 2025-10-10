@@ -1,5 +1,5 @@
 from .get_parser import BaseModelParser
-from NeuralOperators import FNO, LSM_2D, CNO1d, CNO2d, FNO_2D_Original, ProdFNO_2D_Original, FNO_1D_Original, ProdFNO_1D_Original, DimFNO
+from models import FNO, LSM_2D, CNO1d, CNO2d, FNO_2D_Original, ProdFNO_2D_Original, FNO_1D_Original, ProdFNO_1D_Original, DimFNO
 
 
 class FNOParser(BaseModelParser):
@@ -16,6 +16,7 @@ class FNOParser(BaseModelParser):
         parser.add_argument('--raw_in_consts', type=int, default=0, help='')
         parser.add_argument('--out_channels', type=int, default=1, help='')
         parser.add_argument('--n_dim', type=int, default=1, help='')
+        parser.add_argument('--append_const', type=int, default=1) ##
         parser.add_argument('--pos_encoding', type=int, default=1) ##
         parser.add_argument('--hidden_channels', type=int, default=32) #
         parser.add_argument('--lifting_channels', type=int, default=256) #
@@ -25,21 +26,37 @@ class FNOParser(BaseModelParser):
         parser.add_argument('--mixing_layers', type=int, default=2, help='') #####
         parser.add_argument('--rank', type=float, default=0.42, help='the compression rate of tensor') #
         parser.add_argument('--norm', type=str, default='', help='which norm to use') ##
+        parser.add_argument('--pre_norm', type=int, default=1, help='whether to use pre_norm') ##
         parser.add_argument('--preactivation', type=int, default=0, help='whether to use preactivation') ##
-        parser.add_argument('--prediction_dims', type=int, nargs='+', default=[0], help='which entries are prediction')
+        parser.add_argument('--prediction_dims', type=int, nargs='+', default=[], help='which entries are prediction')
         parser.add_argument('--num_consts', type=int, default=2, help='number of constants used in DimNorm')
+        parser.add_argument('--append_dimless', type=int, default=0, help='whether to append_dimless') ##
+        parser.add_argument('--pos_aug_consts', type=int, default=0, help='whether to use pos_aug consts')
         return parser
-
+    
+    
     def get_model(self, args):
         n_modes=args.n_modes
         num_prod=args.num_prod
         in_channels = args.raw_in_channels
+        if hasattr(args, 'initial_steps'):
+            if args.initial_steps:
+                in_channels *= args.initial_steps
         norm = args.norm
+        dim_norm = args.norm == 'dim_norm'
         if not len(args.norm): norm = None
         new_n_modes = [n_modes,] * args.n_dim
-        model = DimFNO(in_channels=in_channels, in_consts=args.raw_in_consts, out_channels=args.out_channels, n_modes=new_n_modes, hidden_channels=args.hidden_channels, lifting_channels=args.lifting_channels,
-                        projection_channels=args.projection_channels, n_layers=args.n_layers, factorization=args.factorization, channel_mixing=args.channel_mixing, mixing_layers=args.mixing_layers, 
-                        rank=args.rank, num_prod=num_prod, norm=norm, num_consts=args.num_consts, align_prediction_dims=args.prediction_dims, preactivation=args.preactivation)
+        # if not dim_norm:
+        #     model = FNO(in_channels=in_channels, in_consts=args.raw_in_consts, out_channels=args.out_channels, n_modes=new_n_modes, hidden_channels=args.hidden_channels, lifting_channels=args.lifting_channels,
+        #                     projection_channels=args.projection_channels, n_layers=args.n_layers, factorization=args.factorization, channel_mixing=args.channel_mixing, mixing_layers=args.mixing_layers, 
+        #                     rank=args.rank, num_prod=num_prod, norm=norm, preactivation=args.preactivation, positional_encoding=args.pos_encoding)
+        # else:
+        # append_const = not dim_norm and not args.pos_aug_consts
+        append_const = args.append_const
+        model = DimFNO(in_channels=in_channels, in_consts=args.raw_in_consts, append_const=append_const, out_channels=args.out_channels, n_modes=new_n_modes, hidden_channels=args.hidden_channels, lifting_channels=args.lifting_channels,
+                            projection_channels=args.projection_channels, n_layers=args.n_layers, factorization=args.factorization, channel_mixing=args.channel_mixing, mixing_layers=args.mixing_layers, 
+                            rank=args.rank, num_prod=num_prod, norm=norm, pre_norm=args.pre_norm, num_consts=args.num_consts, # append_dimless=args.append_dimless, pos_aug_consts=args.pos_aug_consts, 
+                            align_prediction_dims=args.prediction_dims, preactivation=args.preactivation, positional_encoding=args.pos_encoding)
         return model
 
 

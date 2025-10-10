@@ -4,7 +4,7 @@ python -m scripts.train_dim TorusVisForceDim FNO \
     --data_path /data/ycsong/data/ns_contextual/ns_random_forces_v0.h5 \
     --n_train 1000 \
     --n_test 200 \
-    --raw_in_channels 3 \
+    --raw_in_channels 2 \
     --raw_in_consts 1 \
     --n_dim 2 \
     --batch_size 32 \

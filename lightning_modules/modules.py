@@ -2,6 +2,130 @@ from typing import Any
 import lightning as L
 import torch
 
+
+class InitialStepsModule(L.LightningModule):
+    """
+    Basic Pytorch-Lightning module for AI for Science Tasks.
+    """
+    def __init__(self, model, optimizer, scheduler, train_loss, metric_dict:dict, average_over_batch=True, initial_steps=10, t_train=101) -> None:
+        super().__init__()
+        self.model = model
+        self.optimizer = optimizer
+        self.scheduler = scheduler
+        self.train_loss = train_loss
+        self.metric_dict = metric_dict
+        self.average_over_batch = average_over_batch
+        self.initial_steps = initial_steps
+        self.t_train = t_train
+        self.average_over_time = True
+
+    def configure_optimizers(self):
+        return {'optimizer':self.optimizer, 'lr_scheduler': self.scheduler}
+
+    def training_step(self, batch, batch_idx, *args, **kwargs):
+        # pred = self.model(**batch)
+        # has_nan = torch.isnan(pred).any()
+        # if has_nan:
+        #     import pdb; pdb.set_trace()
+        yy = batch['y']
+        xx = batch['x']
+        try:
+            consts = batch['consts']
+        except:
+            consts = None
+        pred = yy[:, :, :self.initial_steps, ...]
+
+
+        inp_shape = list(xx.shape)
+        inp_shape[1] *= inp_shape[2]
+        inp_shape.pop(2)
+
+        loss = 0.
+
+        for t in range(self.initial_steps, self.t_train):
+            inp = xx.reshape(inp_shape)
+            # Extract target at current time step
+            y = yy[:, :, t : t + 1, ...]
+            inputs = {'x': inp, 'y': y}
+            if consts is not None:
+                inputs.update({'consts': consts})
+            im = self.model(**inputs)
+            _batch = im.size(0)
+            loss += self.train_loss(im.reshape(_batch, -1), y.reshape(_batch, -1))
+            pred = torch.cat((pred, im.unsqueeze(2)), 2)
+            xx = torch.cat((xx[:, :, 1:, ...], im.unsqueeze(2)), dim=2)
+
+        loss = self.train_loss(pred, batch['y'])
+        if self.average_over_batch:
+            loss /=  batch['y'].shape[0]
+
+        if self.average_over_time:
+            loss /= self.t_train - self.initial_steps
+        
+        loss = torch.mean(loss)
+        self.log('train_err', value=loss)
+        return loss
+    
+    def validation_step(self, batch, batch_idx, *args, **kwargs):
+        yy = batch['y']
+        xx = batch['x']
+        try:
+            consts = batch['consts']
+        except:
+            consts = None
+        pred = yy[:, :, :self.initial_steps, ...]
+        
+        inp_shape = list(xx.shape)
+        inp_shape[1] *= inp_shape[2]
+        inp_shape.pop(2)
+
+        loss_dict = {key: 0. for key in self.metric_dict.keys()}
+
+        for t in range(self.initial_steps, self.t_train):
+            inp = xx.reshape(inp_shape)
+            # Extract target at current time step
+            y = yy[:, :, t : t + 1, ...]
+            inputs = {'x': inp, 'y': y}
+            if consts is not None:
+                inputs.update({'consts': consts})
+            im = self.model(**inputs)
+
+            _batch = im.size(0)
+            for key in self.metric_dict.keys():
+                loss_dict[key] += self.metric_dict[key](
+                    im.reshape(_batch, -1), y.reshape(_batch, -1)
+                )
+
+            pred = torch.cat((pred, im.unsqueeze(2)), 2)
+            xx = torch.cat((xx[:, :, 1:, ...], im.unsqueeze(2)), dim=2)
+        # _batch = yy.size(0)
+        # _pred = pred[..., self.initial_steps:self.t_train, :]
+        # _yy = yy[..., self.initial_steps:self.t_train, :]
+
+        for key in self.metric_dict.keys():
+            # loss = self.metric_dict[key](_pred, _yy)
+            if self.average_over_batch:
+                loss_dict[key] /=  batch['y'].shape[0]
+            if self.average_over_time:
+                loss_dict[key] /= self.t_train - self.initial_steps
+            loss_dict[key] = torch.mean(loss_dict[key])
+        self.log_dict(loss_dict)
+    
+    def test_step(self, batch, batch_idx, *args, **kwargs):
+        pred = self.model(**batch)
+        loss_dict = dict()
+        for key in self.metric_dict.keys():
+            loss = self.metric_dict[key](pred, batch['y'])
+            if self.average_over_batch:
+                loss /=  batch['y'].shape[0]
+            loss_dict[key] = loss
+        self.log_dict(loss_dict)
+
+    def predict_step(self, batch, *args: Any, **kwargs: Any) -> Any:
+        pred = self.model(**batch)
+        return pred, batch['y']
+
+
 class MultiMetricModule(L.LightningModule):
     """
     Basic Pytorch-Lightning module for AI for Science Tasks.
@@ -10,7 +134,7 @@ class MultiMetricModule(L.LightningModule):
         2. The 
     TODO: add single metric
     """
-    def __init__(self, model, optimizer, scheduler, train_loss, metric_dict:dict, average_over_batch=True) -> None:
+    def __init__(self, model, optimizer, scheduler, train_loss, metric_dict:dict, average_over_batch=True, apply_rollout=False) -> None:
         super().__init__()
         self.model = model
         self.optimizer = optimizer
@@ -18,15 +142,22 @@ class MultiMetricModule(L.LightningModule):
         self.train_loss = train_loss
         self.metric_dict = metric_dict
         self.average_over_batch = average_over_batch
+        self.apply_rollout = apply_rollout
 
     def configure_optimizers(self):
         return {'optimizer':self.optimizer, 'lr_scheduler': self.scheduler}
 
     def training_step(self, batch, batch_idx, *args, **kwargs):
-        loss = self.train_loss(self.model(**batch), batch['y'])
+        # pred = self.model(**batch)
+        # has_nan = torch.isnan(pred).any()
+        # if has_nan:
+        #     import pdb; pdb.set_trace()
+        pred = self.model(**batch)
+        loss = self.train_loss(pred, batch['y'])
         if self.average_over_batch:
             loss /=  batch['y'].shape[0]
-        self.log('train_err', loss)
+        loss = torch.mean(loss)
+        self.log('train_err', value=loss)
         return loss
     
     def validation_step(self, batch, batch_idx, *args, **kwargs):
@@ -36,10 +167,29 @@ class MultiMetricModule(L.LightningModule):
             loss = self.metric_dict[key](pred, batch['y'])
             if self.average_over_batch:
                 loss /=  batch['y'].shape[0]
-            loss_dict[key] = loss
+            loss_dict[key] = torch.mean(loss)
         self.log_dict(loss_dict)
     
     def test_step(self, batch, batch_idx, *args, **kwargs):
+        if not self.apply_rollout:
+            return self.original_test_step(batch, batch_idx, *args, **kwargs)
+        # else:
+        rollouts = batch['t'][0]
+        # Specifically designed for TorusVisForce!
+        if batch_idx == 0:
+            print(rollouts)
+        for t in range(rollouts):
+            pred = self.model(**batch)
+            batch['x'][:, 0:1] = pred
+        loss_dict = dict()
+        for key in self.metric_dict.keys():
+            loss = self.metric_dict[key](pred, batch['y'])
+            if self.average_over_batch:
+                loss /=  batch['y'].shape[0]
+            loss_dict[key] = loss
+        self.log_dict(loss_dict)
+
+    def original_test_step(self, batch, batch_idx, *args, **kwargs):
         pred = self.model(**batch)
         loss_dict = dict()
         for key in self.metric_dict.keys():

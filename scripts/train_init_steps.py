@@ -26,15 +26,16 @@ from lightning.pytorch.utilities.model_summary.model_summary import ModelSummary
 
 import lightning as L
 from lightning.pytorch import seed_everything
-from lightning_modules import MultiMetricModule
+from lightning_modules import InitialStepsModule
 from utils.losses import LpLoss, H1Loss
+from utils.metrics import metrics
 
 from scripts.get_parser import Fetcher
 from scripts.models import FNOParser, LSMParser, CNOParser, FNO_OriginalParser
 from scripts.datasets import BurgersParser, DarcyParser, TorusLiParser, TorusVisForceParser, PDEBenchParser
 
 ModelParsers = [FNOParser, LSMParser, CNOParser, FNO_OriginalParser]
-DataParsers = [BurgersParser, DarcyParser, TorusLiParser, TorusVisForceParser, PDEBenchParser]
+DataParsers = [PDEBenchParser]
 
 def run(raw_args=None):
     fetcher = Fetcher(DataParsers=DataParsers, ModelParsers=ModelParsers)
@@ -97,7 +98,7 @@ def run(raw_args=None):
         sys.stdout.flush()
 
     use_sum_reduction = (args.loss_reduction == 'sum')
-    module = MultiMetricModule(model=model, optimizer=optimizer, scheduler=scheduler, train_loss=train_loss, metric_dict=loss_dict, average_over_batch=use_sum_reduction)
+    module = InitialStepsModule(model=model, optimizer=optimizer, scheduler=scheduler, train_loss=train_loss, metric_dict=loss_dict, average_over_batch=use_sum_reduction, initial_steps=args.initial_steps, t_train=args.t_train)
 
     # # # Logs # # #
     save_dir = args.save_dir + '/' + args.data + '/' + args.model + '/'

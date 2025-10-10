@@ -26,15 +26,37 @@ from lightning.pytorch.utilities.model_summary.model_summary import ModelSummary
 
 import lightning as L
 from lightning.pytorch import seed_everything
-from lightning_modules import MultiMetricModule
+from lightning_modules import InitialStepsModule
 from utils.losses import LpLoss, H1Loss
+from utils.metrics import metrics
 
 from scripts.get_parser import Fetcher
 from scripts.models import FNOParser, LSMParser, CNOParser, FNO_OriginalParser
-from scripts.datasets import BurgersParser, DarcyParser, TorusLiParser, TorusVisForceParser, PDEBenchParser
+from scripts.datasets import TorusVisForceDimParser, TorusVisForceDimTimeParser, PDEBenchDimParser
 
-ModelParsers = [FNOParser, LSMParser, CNOParser, FNO_OriginalParser]
-DataParsers = [BurgersParser, DarcyParser, TorusLiParser, TorusVisForceParser, PDEBenchParser]
+ModelParsers = [FNOParser]
+DataParsers = [TorusVisForceDimParser, TorusVisForceDimTimeParser, PDEBenchDimParser]
+
+from lightning.pytorch.callbacks import Callback
+
+class SetDimNormCoeff(Callback):
+    def on_train_start(self, trainer, pl_module):
+        num_consts = trainer.model.model.num_consts
+        total_mu, total_std = torch.zeros(num_consts), torch.zeros(num_consts)
+        cnt=0
+        for batch in trainer.train_dataloader:
+            # for  in dataloader:
+                aligned_mu, aligned_std = trainer.model.model.dim_aligner(**batch)
+                total_mu += torch.mean(aligned_mu, dim=0); total_std += torch.mean(aligned_std, dim=0); cnt+=1
+        mean_mu = total_mu / cnt; mean_std = total_std / cnt
+        keep_origin = True
+        if keep_origin:
+            mean_mu = torch.cat([torch.tensor([1.], dtype=mean_mu.dtype), mean_mu])
+            mean_std = torch.cat([torch.tensor([1.], dtype=mean_std.dtype), mean_std])
+
+        trainer.model.model.set_dim_coeffs(1/mean_std, torch.zeros_like(mean_std))
+        print(mean_mu, mean_std)
+        return super().on_train_start(trainer, pl_module)
 
 def run(raw_args=None):
     fetcher = Fetcher(DataParsers=DataParsers, ModelParsers=ModelParsers)
@@ -65,6 +87,13 @@ def run(raw_args=None):
         hparams = args
     # print(hparams)
     model = fetcher.get_model(hparams)
+    use_dim = (args.norm == 'dim_norm' or args.norm == 'dim_norm1' or args.append_dimless)
+
+    if use_dim:
+        model.set_dim_aligner(fetcher.data_fetcher[args.data]().get_dim_aligner(args))
+    
+    if args.scale_shifting:
+        model.set_scale_shifting(fetcher.data_fetcher[args.data]().get_scale_shifting(args))
 
     del fetcher
 
@@ -97,7 +126,7 @@ def run(raw_args=None):
         sys.stdout.flush()
 
     use_sum_reduction = (args.loss_reduction == 'sum')
-    module = MultiMetricModule(model=model, optimizer=optimizer, scheduler=scheduler, train_loss=train_loss, metric_dict=loss_dict, average_over_batch=use_sum_reduction)
+    module = InitialStepsModule(model=model, optimizer=optimizer, scheduler=scheduler, train_loss=train_loss, metric_dict=loss_dict, average_over_batch=use_sum_reduction, initial_steps=args.initial_steps, t_train=args.t_train)
 
     # # # Logs # # #
     save_dir = args.save_dir + '/' + args.data + '/' + args.model + '/'
@@ -119,15 +148,19 @@ def run(raw_args=None):
         file.write(ModelSummary(module).__str__())
 
     # # # Training # # #
-    trainer = L.Trainer(
-        callbacks=[
+    callbacks=[
             ModelCheckpoint(
                 dirpath=log_path, 
                 monitor='l2', save_top_k=1
                 ),
             EarlyStopping(monitor='l2', patience=100),
             Timer(),
-        ], 
+        ]
+    if use_dim:
+        callbacks.insert(0, SetDimNormCoeff())
+
+    trainer = L.Trainer(
+        callbacks=callbacks, 
         max_epochs=args.epochs,
         logger=logger,
         )
