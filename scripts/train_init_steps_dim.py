@@ -32,10 +32,10 @@ from utils.metrics import metrics
 
 from scripts.get_parser import Fetcher
 from scripts.models import FNOParser, LSMParser, CNOParser, FNO_OriginalParser
-from scripts.datasets import TorusVisForceDimParser, TorusVisForceDimTimeParser, PDEBenchDimParser
+from scripts.datasets import TorusVisForceDimParser, PDEBenchDimParser
 
 ModelParsers = [FNOParser]
-DataParsers = [TorusVisForceDimParser, TorusVisForceDimTimeParser, PDEBenchDimParser]
+DataParsers = [TorusVisForceDimParser, PDEBenchDimParser]
 
 from lightning.pytorch.callbacks import Callback
 
@@ -92,8 +92,8 @@ def run(raw_args=None):
     if use_dim:
         model.set_dim_aligner(fetcher.data_fetcher[args.data]().get_dim_aligner(args))
     
-    if args.scale_shifting:
-        model.set_scale_shifting(fetcher.data_fetcher[args.data]().get_scale_shifting(args))
+    # if args.scale_shifting:
+    #     model.set_scale_shifting(fetcher.data_fetcher[args.data]().get_scale_shifting(args))
 
     del fetcher
 

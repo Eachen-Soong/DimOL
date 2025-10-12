@@ -1,7 +1,65 @@
 from .get_parser import BaseModelParser
-from models import FNO, LSM_2D, CNO1d, CNO2d, FNO_2D_Original, ProdFNO_2D_Original, FNO_1D_Original, ProdFNO_1D_Original, DimFNO
+from models import FNO, LSM_2D, CNO1d, CNO2d, FNO_2D_Original, ProdFNO_2D_Original, FNO_1D_Original, ProdFNO_1D_Original, DimFNO, CRNO2d
 
 
+class CROP2DParser(BaseModelParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.name = 'CROP'
+        
+    def add_parser_args(self, parser):
+        # # # Model Configs # # #
+        parser.add_argument('--modes', type=int, default=24) #
+        parser.add_argument('--ini_channels', type=int, default=32) #
+        parser.add_argument('--N_layers', type=int, default=3) #
+        parser.add_argument('--N_res', type=int, default=4) #
+        parser.add_argument('--N_res_neck', type=int, default=6) #
+        parser.add_argument('--in_out_size', type=int, default=64) #
+        parser.add_argument('--latent_size', type=int, default=64) #
+        # parser.add_argument('--size_ratio', type=float, default=4/3)
+        parser.add_argument('--kernel_size', type=int, default=3) #
+
+        parser.add_argument('--raw_in_channels', type=int, default=1, help='')
+        parser.add_argument('--raw_in_consts', type=int, default=0, help='')
+        parser.add_argument('--n_dim', type=int, default=2, help='')
+        parser.add_argument('--out_channels', type=int, default=1, help='')
+        parser.add_argument('--norm', type=str, default='', help='which norm to use') ##
+        parser.add_argument('--append_const', type=int, default=1) ##
+        # parser.add_argument('--pos_encoding', type=int, default=1) ##
+        parser.add_argument('--use_dim', type=int, default=1) ##
+        parser.add_argument('--pre_norm', type=int, default=1, help='whether to use pre_norm') ##
+        parser.add_argument('--align_final', type=int, default=1, help='whether to use pre_norm') ##
+        parser.add_argument('--prediction_dims', type=int, nargs='+', default=[], help='which entries are prediction')
+        parser.add_argument('--num_consts', type=int, default=2, help='number of constants used in DimNorm')
+        parser.add_argument('--append_dimless', type=int, default=0, help='whether to append_dimless') ##
+        return parser
+    
+    def get_model(self, args):
+        in_channels = args.raw_in_channels
+        if hasattr(args, 'initial_steps'):
+            if args.initial_steps:
+                in_channels *= args.initial_steps
+
+        model = CRNO2d(     in_dim      = in_channels,               # Number of input channels.
+                            out_dim     = args.out_channels,
+                            in_out_size = args.in_out_size,
+                            latent_size = args.latent_size,              # Latent Spacial size
+                            modes       = args.modes,
+                            N_layers    = args.N_layers,                    # Number of (D) and (U) Blocks in the network
+                            N_res       = args.N_res,                          # Number of (R) Blocks per level
+                            N_res_neck  = args.N_res_neck,
+                            ini_channel = args.ini_channels,
+                            norm        = args.norm,
+                            append_const= args.append_const,
+                            use_dim     = args.use_dim,
+                            pre_norm    = args.pre_norm,
+                            align_final = args.align_final,
+                            num_dimless = args.num_consts,
+                            num_consts  = args.raw_in_consts,
+                            prediction_dims = args.prediction_dims,
+                            )
+        return model
+    
 class FNOParser(BaseModelParser):
     def __init__(self) -> None:
         super().__init__()
@@ -33,7 +91,6 @@ class FNOParser(BaseModelParser):
         parser.add_argument('--append_dimless', type=int, default=0, help='whether to append_dimless') ##
         parser.add_argument('--pos_aug_consts', type=int, default=0, help='whether to use pos_aug consts')
         return parser
-    
     
     def get_model(self, args):
         n_modes=args.n_modes
@@ -115,38 +172,42 @@ class LSMParser(BaseModelParser):
         self.name = 'LSM'
 
     def add_parser_args(self, parser):
-        parser.add_argument('--in_dim', default=1, type=int, help='input data dimension')
-        parser.add_argument('--out_dim', default=1, type=int, help='output data dimension')
-        parser.add_argument('--h', default=421, type=int, help='input data height')
-        parser.add_argument('--w', default=421, type=int, help='input data width')
-        parser.add_argument('--T-in', default=10, type=int,
-                            help='input data time points (only for temporal related experiments)')
-        parser.add_argument('--T-out', default=10, type=int,
-                            help='predict data time points (only for temporal related experiments)')
+        parser.add_argument('--raw_in_channels', default=1, type=int, help='input data dimension')
+        parser.add_argument('--raw_in_consts', type=int, default=0, help='')
+        parser.add_argument('--out_channels', default=1, type=int, help='output data dimension')
         parser.add_argument('--pos_encoding', type=int, default=1) ##
         parser.add_argument('--d-model', default=64, type=int, help='channels of hidden variates')
         parser.add_argument('--num-basis', default=12, type=int, help='number of basis operators')
         parser.add_argument('--num-token', default=4, type=int, help='number of latent tokens')
         parser.add_argument('--patch-size', default='6,6', type=str, help='patch size of different dimensions')
         parser.add_argument('--padding', default='11,11', type=str, help='padding size of different dimensions')
-        parser.add_argument('--channel_mixing', type=str, default='', help='') #####
-        parser.add_argument('--num_prod', type=int, default=2) #
-
+        parser.add_argument('--norm', default='layer_norm', type=str, help='which norm to use')
+        parser.add_argument('--append_const', type=int, default=1) ##
+        parser.add_argument('--use_dim', type=int, default=1) ##
+        parser.add_argument('--pre_norm', type=int, default=1, help='whether to use pre_norm') ##
+        parser.add_argument('--align_final', type=int, default=1, help='whether to use pre_norm') ##
+        parser.add_argument('--prediction_dims', type=int, nargs='+', default=[], help='which entries are prediction')
+        parser.add_argument('--num_consts', type=int, default=2, help='number of constants used in DimNorm')
+        parser.add_argument('--append_dimless', type=int, default=0, help='whether to append_dimless') ##
         return parser
 
     def get_model(self, args):
-        in_channels = args.in_dim
-        if args.pos_encoding:
-            in_channels += 2
-        out_channels = args.out_dim
+        in_channels = args.raw_in_channels
+        out_channels = args.out_channels
+        args.norm = None
+        args.n_dim = 2
         width = args.d_model
         num_token = args.num_token
         num_basis = args.num_basis
         patch_size = [int(x) for x in args.patch_size.split(',')]
         padding = [int(x) for x in args.padding.split(',')]
 
-        model = LSM_2D(in_dim=in_channels, out_dim=out_channels, d_model=width,
-                            num_token=num_token, num_basis=num_basis, patch_size=patch_size, padding=padding, channel_mixing=args.channel_mixing, num_prod=args.num_prod)
+        model = LSM_2D( in_dim=in_channels, out_dim=out_channels, d_model=width,
+                        num_token=num_token, num_basis=num_basis, patch_size=patch_size, padding=padding, norm=args.norm,
+                        append_const=args.append_const, use_dim=args.use_dim, pre_norm=args.pre_norm,
+                        align_final=args.align_final, num_dimless=args.num_consts, num_consts=args.raw_in_consts,
+                        prediction_dims=args.prediction_dims,
+                        )
         return model
 
 
