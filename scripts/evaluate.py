@@ -30,11 +30,11 @@ from lightning_modules import MultiMetricModule
 from utils.losses import LpLoss, H1Loss
 
 from scripts.get_parser import Fetcher
-from scripts.models import FNOParser, LSMParser, CNOParser, FNO_OriginalParser
-from scripts.datasets import TorusVisForceDimParser#, TorusVisForceDimTimeParser, PDEBenchDimParser
+from scripts.models import FNOParser, LSMParser, CNOParser, FNO_OriginalParser, CROP2DParser
+from scripts.datasets import TorusVisForceDimParser, PDEBenchDimParser
 
-ModelParsers = [FNOParser]
-DataParsers = [TorusVisForceDimParser#, TorusVisForceDimTimeParser, PDEBenchDimParser
+ModelParsers = [FNOParser, CROP2DParser]
+DataParsers = [TorusVisForceDimParser, PDEBenchDimParser
                ]
 
 from lightning.pytorch.callbacks import Callback
@@ -96,7 +96,8 @@ def run(raw_args=None):
     # print(hparams)
     model = fetcher.get_model(hparams)
     use_dim = (hparams.norm == 'dim_norm' or hparams.norm == 'dim_norm1' or hparams.append_dimless)
-
+    if hasattr(hparams, 'use_dim'): use_dim = True
+    # import pdb;pdb.set_trace()
     if use_dim:
         model.set_dim_aligner(fetcher.data_fetcher[args.data]().get_dim_aligner(hparams))
     
@@ -107,7 +108,7 @@ def run(raw_args=None):
 
     ckpt_list = find_files_by_suffix(args.load_path, '.ckpt')
     assert len(ckpt_list) == 1, f"Number of files ended with .ckpt should be 1, instead of {len(ckpt_list)}."
-    
+
     ckpt = torch.load(ckpt_list[0])
     prefix = "model."
     state_dict = {k[len(prefix):]: v for k, v in ckpt["state_dict"].items() if k.startswith(prefix)}

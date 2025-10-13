@@ -1,5 +1,5 @@
 from .get_parser import BaseModelParser
-from models import FNO, LSM_2D, CNO1d, CNO2d, FNO_2D_Original, ProdFNO_2D_Original, FNO_1D_Original, ProdFNO_1D_Original, DimFNO, CRNO2d
+from models import FNO, LSM_2D, CNO1d, CNO2d, FNO_2D_Original, ProdFNO_2D_Original, FNO_1D_Original, ProdFNO_1D_Original, DimFNO, CRNO2d, FFNO2d
 
 
 class CROP2DParser(BaseModelParser):
@@ -80,6 +80,7 @@ class FNOParser(BaseModelParser):
         parser.add_argument('--lifting_channels', type=int, default=256) #
         parser.add_argument('--projection_channels', type=int, default=64) #
         parser.add_argument('--factorization', type=str, default='') #####
+        parser.add_argument('--ffno', type=int, default=0, help='whether to use F-FNO spectral conv') #####
         parser.add_argument('--channel_mixing', type=str, default='', help='') #####
         parser.add_argument('--mixing_layers', type=int, default=2, help='') #####
         parser.add_argument('--rank', type=float, default=0.42, help='the compression rate of tensor') #
@@ -110,9 +111,15 @@ class FNOParser(BaseModelParser):
         # else:
         # append_const = not dim_norm and not args.pos_aug_consts
         append_const = args.append_const
-        model = DimFNO(in_channels=in_channels, in_consts=args.raw_in_consts, append_const=append_const, out_channels=args.out_channels, n_modes=new_n_modes, hidden_channels=args.hidden_channels, lifting_channels=args.lifting_channels,
+        if args.ffno:
+            model = FFNO2d(in_channels=in_channels, in_consts=args.raw_in_consts, append_const=append_const, out_channels=args.out_channels, n_modes=new_n_modes, hidden_channels=args.hidden_channels, lifting_channels=args.lifting_channels,
                             projection_channels=args.projection_channels, n_layers=args.n_layers, factorization=args.factorization, channel_mixing=args.channel_mixing, mixing_layers=args.mixing_layers, 
-                            rank=args.rank, num_prod=num_prod, norm=norm, pre_norm=args.pre_norm, num_consts=args.num_consts, # append_dimless=args.append_dimless, pos_aug_consts=args.pos_aug_consts, 
+                            rank=args.rank, num_prod=num_prod, norm=norm, pre_norm=args.pre_norm, num_consts=args.num_consts, 
+                            align_prediction_dims=args.prediction_dims, preactivation=args.preactivation, positional_encoding=args.pos_encoding)
+        else:
+            model = DimFNO(in_channels=in_channels, in_consts=args.raw_in_consts, append_const=append_const, out_channels=args.out_channels, n_modes=new_n_modes, hidden_channels=args.hidden_channels, lifting_channels=args.lifting_channels,
+                            projection_channels=args.projection_channels, n_layers=args.n_layers, factorization=args.factorization, channel_mixing=args.channel_mixing, mixing_layers=args.mixing_layers, 
+                            rank=args.rank, num_prod=num_prod, norm=norm, pre_norm=args.pre_norm, num_consts=args.num_consts, 
                             align_prediction_dims=args.prediction_dims, preactivation=args.preactivation, positional_encoding=args.pos_encoding)
         return model
 

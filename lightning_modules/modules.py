@@ -298,3 +298,53 @@ class MultiTaskModule(L.LightningModule):
         else:
             return pred, batch['y']
     
+class InverseProblemSolver(L.LightningModule):
+    def __init__(self, model, forward_operator, loss_fn, lr=1e-3, lambda_reg=0.0):
+        super().__init__()
+        self.model = model  # 神经网络近似反算子 fθ
+        self.forward_operator = forward_operator  # 已知的正向算子 A
+        self.loss_fn = loss_fn  # 例如 MSE
+        self.lr = lr
+        self.lambda_reg = lambda_reg  # 正则化权重
+
+    def forward(self, y):
+        """反演：预测原始信号 x̂"""
+        return self.model(y)
+
+    def training_step(self, batch, batch_idx):
+        x_true, y_obs = batch
+        x_pred = self(y_obs)
+        y_pred = self.forward_operator(x_pred)
+
+        # Data consistency term
+        data_loss = self.loss_fn(y_pred, y_obs)
+        recon_loss = self.loss_fn(x_pred, x_true)
+
+        # Optional regularization (e.g., smoothness, TV, etc.)
+        reg_loss = self.regularization(x_pred)
+
+        loss = recon_loss + data_loss + self.lambda_reg * reg_loss
+
+        self.log_dict({
+            "train_loss": loss,
+            "data_loss": data_loss,
+            "recon_loss": recon_loss,
+            "reg_loss": reg_loss,
+        })
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        x_true, y_obs = batch
+        x_pred = self(y_obs)
+        loss = self.loss_fn(x_pred, x_true)
+        self.log("val_loss", loss, prog_bar=True)
+        return loss
+
+    def regularization(self, x):
+        # 举例：Total Variation 正则
+        dx = torch.abs(x[:, :, 1:, :] - x[:, :, :-1, :]).mean()
+        dy = torch.abs(x[:, :, :, 1:] - x[:, :, :, :-1]).mean()
+        return dx + dy
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self.lr)
