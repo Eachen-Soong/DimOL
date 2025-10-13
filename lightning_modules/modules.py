@@ -33,27 +33,27 @@ class InitialStepsModule(L.LightningModule):
             consts = batch['consts']
         except:
             consts = None
-        pred = yy[:, :, :self.initial_steps, ...]
+        pred = yy[..., :self.initial_steps]
 
 
         inp_shape = list(xx.shape)
-        inp_shape[1] *= inp_shape[2]
-        inp_shape.pop(2)
+        inp_shape[1] *= inp_shape[-1]
+        inp_shape.pop(-1)
 
         loss = 0.
 
         for t in range(self.initial_steps, self.t_train):
             inp = xx.reshape(inp_shape)
             # Extract target at current time step
-            y = yy[:, :, t : t + 1, ...]
+            y = yy[..., t]
             inputs = {'x': inp, 'y': y}
             if consts is not None:
                 inputs.update({'consts': consts})
             im = self.model(**inputs)
             _batch = im.size(0)
             loss += self.train_loss(im.reshape(_batch, -1), y.reshape(_batch, -1))
-            pred = torch.cat((pred, im.unsqueeze(2)), 2)
-            xx = torch.cat((xx[:, :, 1:, ...], im.unsqueeze(2)), dim=2)
+            pred = torch.cat((pred, im.unsqueeze(-1)), -1)
+            xx = torch.cat((xx[..., 1:], im.unsqueeze(-1)), dim=-1)
 
         loss = self.train_loss(pred, batch['y'])
         if self.average_over_batch:
@@ -67,24 +67,24 @@ class InitialStepsModule(L.LightningModule):
         return loss
     
     def validation_step(self, batch, batch_idx, *args, **kwargs):
-        yy = batch['y']
-        xx = batch['x']
+        yy = batch['y'] # [b, c, x, y, t]
+        xx = batch['x'] # [b, c, x, y, t]
         try:
             consts = batch['consts']
         except:
             consts = None
-        pred = yy[:, :, :self.initial_steps, ...]
+        pred = yy[..., :self.initial_steps]
         
         inp_shape = list(xx.shape)
-        inp_shape[1] *= inp_shape[2]
-        inp_shape.pop(2)
+        inp_shape[1] *= inp_shape[-1]
+        inp_shape.pop(-1)
 
         loss_dict = {key: 0. for key in self.metric_dict.keys()}
 
         for t in range(self.initial_steps, self.t_train):
             inp = xx.reshape(inp_shape)
             # Extract target at current time step
-            y = yy[:, :, t : t + 1, ...]
+            y = yy[..., t]
             inputs = {'x': inp, 'y': y}
             if consts is not None:
                 inputs.update({'consts': consts})
@@ -95,13 +95,11 @@ class InitialStepsModule(L.LightningModule):
                 loss_dict[key] += self.metric_dict[key](
                     im.reshape(_batch, -1), y.reshape(_batch, -1)
                 )
-
-            pred = torch.cat((pred, im.unsqueeze(2)), 2)
-            xx = torch.cat((xx[:, :, 1:, ...], im.unsqueeze(2)), dim=2)
+            pred = torch.cat((pred, im.unsqueeze(-1)), -1)
+            xx = torch.cat((xx[..., 1:], im.unsqueeze(-1)), dim=-1)
         # _batch = yy.size(0)
         # _pred = pred[..., self.initial_steps:self.t_train, :]
         # _yy = yy[..., self.initial_steps:self.t_train, :]
-
         for key in self.metric_dict.keys():
             # loss = self.metric_dict[key](_pred, _yy)
             if self.average_over_batch:
