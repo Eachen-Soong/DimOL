@@ -31,10 +31,10 @@ from utils.losses import LpLoss, H1Loss
 from utils.metrics import metrics
 
 from scripts.get_parser import Fetcher
-from scripts.models import FNOParser, LSMParser, CNOParser, FNO_OriginalParser
+from scripts.models import FNOParser, LSMParser, CNOParser, FNO_OriginalParser, CROP2DParser
 from scripts.datasets import BurgersParser, DarcyParser, TorusLiParser, TorusVisForceParser, PDEBenchParser
 
-ModelParsers = [FNOParser, LSMParser, CNOParser, FNO_OriginalParser]
+ModelParsers = [FNOParser, LSMParser, CNOParser, FNO_OriginalParser, CROP2DParser]
 DataParsers = [PDEBenchParser]
 
 def run(raw_args=None):

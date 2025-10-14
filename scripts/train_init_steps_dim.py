@@ -31,10 +31,10 @@ from utils.losses import LpLoss, H1Loss
 from utils.metrics import metrics
 
 from scripts.get_parser import Fetcher
-from scripts.models import FNOParser, LSMParser, CNOParser, FNO_OriginalParser
+from scripts.models import FNOParser, LSMParser, CNOParser, FNO_OriginalParser, CROP2DParser
 from scripts.datasets import TorusVisForceDimParser, PDEBenchDimParser
 
-ModelParsers = [FNOParser]
+ModelParsers = [FNOParser, CROP2DParser, LSMParser]
 DataParsers = [TorusVisForceDimParser, PDEBenchDimParser]
 
 from lightning.pytorch.callbacks import Callback
@@ -88,7 +88,7 @@ def run(raw_args=None):
     # print(hparams)
     model = fetcher.get_model(hparams)
     use_dim = (args.norm == 'dim_norm' or args.norm == 'dim_norm1' or args.append_dimless)
-
+    if hasattr(args, 'use_dim'): use_dim = bool(args.use_dim)
     if use_dim:
         model.set_dim_aligner(fetcher.data_fetcher[args.data]().get_dim_aligner(args))
     

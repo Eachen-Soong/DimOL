@@ -96,7 +96,7 @@ def run(raw_args=None):
     # print(hparams)
     model = fetcher.get_model(hparams)
     use_dim = (hparams.norm == 'dim_norm' or hparams.norm == 'dim_norm1' or hparams.append_dimless)
-    if hasattr(hparams, 'use_dim'): use_dim = True
+    if hasattr(args, 'use_dim'): use_dim = bool(args.use_dim)
     # import pdb;pdb.set_trace()
     if use_dim:
         model.set_dim_aligner(fetcher.data_fetcher[args.data]().get_dim_aligner(hparams))

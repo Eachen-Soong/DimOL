@@ -91,6 +91,8 @@ class FNOParser(BaseModelParser):
         parser.add_argument('--num_consts', type=int, default=2, help='number of constants used in DimNorm')
         parser.add_argument('--append_dimless', type=int, default=0, help='whether to append_dimless') ##
         parser.add_argument('--pos_aug_consts', type=int, default=0, help='whether to use pos_aug consts')
+        parser.add_argument('--align_final', type=int, default=1, help='whether to align final dimension')
+        parser.add_argument('--linear_proj_last', type=int, default=0, help='whether to apply another linear projection to the last dim')
         return parser
     
     def get_model(self, args):
@@ -114,12 +116,12 @@ class FNOParser(BaseModelParser):
         if args.ffno:
             model = FFNO2d(in_channels=in_channels, in_consts=args.raw_in_consts, append_const=append_const, out_channels=args.out_channels, n_modes=new_n_modes, hidden_channels=args.hidden_channels, lifting_channels=args.lifting_channels,
                             projection_channels=args.projection_channels, n_layers=args.n_layers, factorization=args.factorization, channel_mixing=args.channel_mixing, mixing_layers=args.mixing_layers, 
-                            rank=args.rank, num_prod=num_prod, norm=norm, pre_norm=args.pre_norm, num_consts=args.num_consts, 
+                            rank=args.rank, num_prod=num_prod, norm=norm, pre_norm=args.pre_norm, num_consts=args.num_consts, align_final=args.align_final, linear_proj_last=args.linear_proj_last,
                             align_prediction_dims=args.prediction_dims, preactivation=args.preactivation, positional_encoding=args.pos_encoding)
         else:
             model = DimFNO(in_channels=in_channels, in_consts=args.raw_in_consts, append_const=append_const, out_channels=args.out_channels, n_modes=new_n_modes, hidden_channels=args.hidden_channels, lifting_channels=args.lifting_channels,
                             projection_channels=args.projection_channels, n_layers=args.n_layers, factorization=args.factorization, channel_mixing=args.channel_mixing, mixing_layers=args.mixing_layers, 
-                            rank=args.rank, num_prod=num_prod, norm=norm, pre_norm=args.pre_norm, num_consts=args.num_consts, 
+                            rank=args.rank, num_prod=num_prod, norm=norm, pre_norm=args.pre_norm, num_consts=args.num_consts, align_final=args.align_final, linear_proj_last=args.linear_proj_last,
                             align_prediction_dims=args.prediction_dims, preactivation=args.preactivation, positional_encoding=args.pos_encoding)
         return model
 
@@ -200,6 +202,9 @@ class LSMParser(BaseModelParser):
 
     def get_model(self, args):
         in_channels = args.raw_in_channels
+        if hasattr(args, 'initial_steps'):
+            if args.initial_steps:
+                in_channels *= args.initial_steps
         out_channels = args.out_channels
         args.norm = None
         args.n_dim = 2
